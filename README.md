@@ -6,7 +6,7 @@ A comprehensive system for discovering and recommending AI research papers using
 
 - **Paper Ingestion**: Automated collection of papers from arXiv and Semantic Scholar
 - **Data Processing**: Cleaning, feature extraction, and embedding generation
-- **Storage**: PostgreSQL for metadata and MinIO for PDF storage
+- **Storage**: PostgreSQL for metadata and Backblaze B2 for PDF storage
 - **Recommendation Engine**: RAG-based paper retrieval and recommendation
 - **Analytics**: Trend analysis and publication volume tracking
 - **API**: FastAPI endpoints for recommendations
@@ -52,7 +52,10 @@ pip install -r requirements.txt
 3. Set up environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your configuration:
+# - PostgreSQL credentials
+# - Backblaze B2 credentials (application key ID and key)
+# - B2 bucket name
 ```
 
 4. Initialize the database:

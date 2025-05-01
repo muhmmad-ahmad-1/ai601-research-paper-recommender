@@ -20,6 +20,8 @@ class Paper(Base):
     categories = Column(JSON)
     published_date = Column(DateTime)
     metadata = Column(JSON)
+    b2_file_id = Column(String)  # B2 file ID for the PDF
+    b2_file_name = Column(String)  # Original file name in B2
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

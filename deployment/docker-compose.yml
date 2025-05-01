@@ -13,12 +13,11 @@ services:
       - POSTGRES_DB=paper_recommender
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
+      - B2_APPLICATION_KEY_ID=${B2_APPLICATION_KEY_ID}
+      - B2_APPLICATION_KEY=${B2_APPLICATION_KEY}
+      - B2_BUCKET_NAME=${B2_BUCKET_NAME}
     depends_on:
       - postgres
-      - minio
 
   frontend:
     build:
@@ -43,18 +42,5 @@ services:
     ports:
       - "5432:5432"
 
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-
 volumes:
-  postgres_data:
-  minio_data: 
+  postgres_data: 

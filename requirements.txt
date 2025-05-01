@@ -24,7 +24,7 @@ langgraph==0.0.10
 apache-airflow==2.7.1
 
 # Storage
-minio==7.1.15
+b2sdk==1.24.0
 
 # Utilities
 python-dotenv==1.0.0
