@@ -6,7 +6,6 @@ from supabase import create_client
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import pydgraph
 from typing import Any, Dict, List
-from sqlalchemy import create_engine, text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,28 +14,45 @@ class DBUtils:
     """Handles connections to Supabase, Milvus, and Dgraph."""
     
     def __init__(self):
-        # Supabase (PostgreSQL)
+        # Supabase (PostgreSQL via REST client)
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.supabase_client = create_client(self.supabase_url, self.supabase_key)
-        self.pg_engine = create_engine(f"postgresql+psycopg2://{os.getenv('SUPABASE_USER')}:{os.getenv('SUPABASE_PASSWORD')}@{os.getenv('SUPABASE_HOST')}/postgres")
-        
+
+        # Removed raw PostgreSQL connection using SQLAlchemy
+        # self.pg_engine = create_engine(...)
+
         # Milvus (Zilliz Cloud)
-        self.milvus_host = os.getenv("MILVUS_HOST")
+        self.milvus_uri = os.getenv("MILVUS_URI")
         self.milvus_token = os.getenv("MILVUS_TOKEN")
-        connections.connect(host=self.milvus_host, token=self.milvus_token)
-        
-        # Dgraph
+        try:
+            connections.connect(alias="default", uri=self.milvus_uri, token=self.milvus_token)
+            logger.info("Connected to Zilliz Cloud")
+        except Exception as e:
+            logger.error(f"Connection failed: {e}")
+            raise
+
+        # Dgraph Cloud (DQL via gRPC)
         self.dgraph_endpoint = os.getenv("DGRAPH_ENDPOINT")
         self.dgraph_api_key = os.getenv("DGRAPH_API_KEY")
-        self.dgraph_headers = {"X-Auth-Token": self.dgraph_api_key, "Content-Type": "application/json"}
-        self.dgraph_client = pydgraph.DgraphClient(pydgraph.DgraphClientStub(self.dgraph_endpoint.replace("/graphql", "")))
-    
+
+        if not self.dgraph_endpoint or not self.dgraph_api_key:
+            raise ValueError("Missing DGRAPH_ENDPOINT or DGRAPH_API_KEY in environment.")
+
+        try:
+            stub = pydgraph.DgraphClientStub.from_cloud(
+                self.dgraph_endpoint,
+                self.dgraph_api_key
+            )
+            self.dgraph_client = pydgraph.DgraphClient(stub)
+            logger.info("Connected to Dgraph Cloud via gRPC.")
+        except Exception as e:
+            logger.error(f"Failed to connect to Dgraph Cloud: {e}")
+            raise
     def create_milvus_collection(self, collection_name: str, dimension: int = 1024) -> Collection:
-        """Create or get a Milvus collection."""
         if utility.has_collection(collection_name):
             return Collection(collection_name)
-        
+
         fields = [
             FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
             FieldSchema(name="paper_id", dtype=DataType.VARCHAR, max_length=100),
@@ -54,50 +70,101 @@ class DBUtils:
         collection.load()
         logger.info(f"Created Milvus collection: {collection_name}")
         return collection
-    
-    def insert_postgres(self, table_name: str, data: List[Dict], returning: str = None) -> List[str]:
-        """Insert data into Supabase table and return specified column if requested.
-        
-        Args:
-            table_name: Table to insert into
-            data: List of dictionaries containing data
-            returning: Column name to return (e.g., 'paper_id')
-        
-        Returns:
-            List of values from the 'returning' column, or empty list if not specified
-        """
-        if not data:
-            return []
-        
-        columns = data[0].keys()
-        values = [tuple(item[col] for col in columns) for item in data]
-        columns_str = ','.join(columns)
-        placeholders = ','.join(['%s'] * len(columns))
-        query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
-        
-        if returning:
-            query += f" RETURNING {returning}"
-        
+
+    def insert_postgres(self, table_name, data, returning=None):
         try:
-            with self.pg_engine.connect() as conn:
-                result = conn.execute(text(query), values)
-                conn.commit()
-                if returning:
-                    return [row[0] for row in result.fetchall()]
-                return []
+            response = self.supabase_client.table(table_name).insert(data).execute()
+            print(response)
+
+            # If using httpx.Client under the hood (which supabase-py does), you can check status
+            if not response.data:
+                raise Exception(f"Insert failed: {response}")  # or log the full response
+
+            if returning:
+                return [row[returning] for row in response.data if returning in row]
+            return []
         except Exception as e:
             logger.error(f"Failed to insert into {table_name}: {e}")
             raise
-    
-    def execute_graphql(self, query: str, variables: Dict = None) -> Dict:
-        """Execute a GraphQL query or mutation."""
-        payload = {"query": query}
-        if variables:
-            payload["variables"] = variables
+
+
+    def execute_dql_query(self, query: str, variables: Dict[str, Any] = None) -> Dict:
+        txn = self.dgraph_client.txn(read_only=True)
         try:
-            response = requests.post(self.dgraph_endpoint, json=payload, headers=self.dgraph_headers)
-            response.raise_for_status()
-            return response.json()
+            res = txn.query(query, variables=variables) if variables else txn.query(query)
+            return res.json
+        finally:
+            txn.discard()
+
+    def execute_dql_mutation(self, set_obj: Dict = None, del_obj: Dict = None) -> Dict:
+        txn = self.dgraph_client.txn()
+        try:
+            if set_obj:
+                res = txn.mutate(set_obj=set_obj)
+            elif del_obj:
+                res = txn.mutate(del_obj=del_obj)
+            else:
+                raise ValueError("Must provide either set_obj or del_obj")
+            txn.commit()
+            return res.uids
+        finally:
+            txn.discard()
+
+    def set_schema(self, schema: str):
+        try:
+            self.dgraph_client.alter(pydgraph.Operation(schema=schema))
+            logger.info("Schema set successfully.")
         except Exception as e:
-            logger.error(f"GraphQL request failed: {e}")
+            logger.error(f"Failed to set schema: {e}")
             raise
+
+    def drop_all(self):
+        try:
+            self.dgraph_client.alter(pydgraph.Operation(drop_all=True))
+            logger.info("Dropped all data in Dgraph.")
+        except Exception as e:
+            logger.error(f"Failed to drop all: {e}")
+            raise
+    
+    def set_schema(self):
+        schema = """
+        paper_id: string @index(exact) .
+        title: string .
+        year: int .
+        authors: [string] .
+        cites: [uid] @reverse .
+
+        type Paper {
+            paper_id
+            title
+            year
+            authors
+            cites
+        }
+        """
+        op = pydgraph.Operation(schema=schema)
+        self.dgraph_client.alter(op)
+    
+    def ensure_schema(self):
+        """Check if required schema is set. If not, apply schema."""
+        try:
+            query = """schema {}"""
+            txn = self.dgraph_client.txn(read_only=True)
+            res = txn.query(query)
+            txn.discard()
+
+            # Extract existing predicate names
+            existing_preds = {entry['predicate'] for entry in res.json.get('schema', [])}
+            required_preds = {"paper_id", "title", "year", "authors", "cites"}
+
+            if not required_preds.issubset(existing_preds):
+                logger.warning("Missing predicates in schema. Applying default schema...")
+                self.set_schema()
+            else:
+                logger.info("Schema already contains required predicates.")
+        except Exception as e:
+            logger.error(f"Schema check failed: {e}. Applying schema as fallback.")
+            self.set_schema()
+
+
+

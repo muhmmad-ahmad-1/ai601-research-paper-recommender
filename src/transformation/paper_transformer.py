@@ -43,10 +43,17 @@ class PaperTransformer:
                     publication_date = datetime.strptime(date_str, '%d-%m-%Y').date().isoformat()
                 except ValueError:
                     publication_date = None
+                doi = data.get('doi',None)
+                if doi == "N/A":
+                    doi = None
+                arxiv_id = data.get('paper_id',None)
+                if arxiv_id == "N/A":
+                    arxiv_id = None
+
                 papers.append({
                     'input_paper_id': input_paper_id,  # Temporary for mapping
                     'title': data.get('title', ''),
-                    'doi': data.get('doi', None),
+                    'doi': doi,
                     'publication_date': publication_date,
                     'journal': data.get('journal', None),
                     'conference': data.get('venue', None),
@@ -54,7 +61,7 @@ class PaperTransformer:
                     'abstract': data.get('abstract', None),
                     'citation_count': data.get('citationCount', 0),
                     'influential_citation_count': data.get('influentialCitationCount',0),
-                    'arxiv_id': input_paper_id if input_paper_id.startswith('arXiv') else None
+                    'arxiv_id':arxiv_id
                 })
                 
                 # Authors

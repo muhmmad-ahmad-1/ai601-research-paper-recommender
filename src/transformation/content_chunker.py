@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ContentChunker:
     """Splits paper sections into chunks."""
     
-    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5", chunk_size: int = 1500,chunk_overlap: int = 200):
+    def __init__(self, model_name: str = "thenlper/gte-large", chunk_size: int = 1500,chunk_overlap: int = 200):
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self.model = SentenceTransformer(model_name)
     
@@ -42,7 +42,7 @@ class ContentChunker:
                             "paper_id": paper_id,
                             "section_id": section_id,
                             "embedding": embedding,
-                            "chunk_id": i+1,
+                            "chunk_id": str(i+1),
                             "created_at": datetime.utcnow().isoformat()
                         })
         

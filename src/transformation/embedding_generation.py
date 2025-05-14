@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
+import uuid 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingGenerator:
     """Generates semantic embeddings for papers."""
     
-    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5"):
+    def __init__(self, model_name: str = "thenlper/gte-large"):
         self.model = SentenceTransformer(model_name)
     
     def generate_embeddings(self, input_path: str, paper_id_mapping: Dict) -> List[Dict]:
@@ -33,9 +34,9 @@ class EmbeddingGenerator:
                 embedding = self.model.encode(text, show_progress_bar=False).tolist()
                 entities.append({
                     "paper_id": paper_id_mapping[paper['paper_id']],
-                    "section_id": None,
+                    "section_id": str(uuid.uuid4()),
                     "embedding": embedding,
-                    "chunk_id": 0,
+                    "chunk_id": str(0),
                     "created_at": datetime.utcnow().isoformat()
                 })
         

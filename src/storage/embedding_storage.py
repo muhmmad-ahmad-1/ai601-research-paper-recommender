@@ -10,7 +10,7 @@ class EmbeddingStorage:
     
     def __init__(self, collection_name: str = "paper_embeddings"):
         self.db_utils = DBUtils()
-        self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
+        self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=768)
     
     def store_embeddings(self, embeddings: List[Dict]) -> None:
         """Store embeddings in Milvus.

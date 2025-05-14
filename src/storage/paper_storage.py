@@ -93,7 +93,9 @@ class PaperStorage:
         ]
         # Filter out citations with missing cited_paper_id
         citations_valid = [c for c in citations_updated if c['cited_paper_id'] is not None]
-        self.db_utils.insert_postgres('citations', citations_valid)
+        print(citations_valid)
+        if citations_valid:
+            self.db_utils.insert_postgres('citations', citations_valid)
         
         logger.info(f"Stored {len(papers)} papers, {len(authors)} authors, {len(paper_authors_updated)} paper_authors, "
                     f"{len(keywords)} keywords, {len(paper_keywords_updated)} paper_keywords, {len(sections_updated)} sections, "

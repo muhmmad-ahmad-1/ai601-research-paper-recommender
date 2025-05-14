@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class ChunkStorage:
     """Stores section/chunk embeddings in Milvus."""
     
-    def __init__(self, collection_name: str = "chunk_embeddings"):
+    def __init__(self, collection_name: str = "paper_embeddings"):
         self.db_utils = DBUtils()
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
     
