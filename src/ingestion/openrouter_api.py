@@ -3,6 +3,7 @@ import os
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 def query_openrouter(prompt: str, api_key: str, max_length: int = 500, model: str = "meta-llama/llama-4-maverick:free") -> str:
+    print(api_key)
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key

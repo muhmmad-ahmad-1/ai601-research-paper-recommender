@@ -22,8 +22,9 @@ class ArxivClient:
         Returns:
             List[str]: List of arXiv IDs
         """
-        rss_url = "http://export.arxiv.org/rss/cs.AI"
-        feed = feedparser.parse(rss_url)
+        rss_url = "https://rss.arxiv.org/rss/cs.AI"
+        response = requests.get(rss_url)  # disable SSL verification
+        feed = feedparser.parse(response.content)
         
         paper_ids = []
         for entry in feed.entries[:num_papers]:
@@ -47,7 +48,7 @@ class ArxivClient:
         search = arxiv.Search(
             query=query,
             max_results=max_results,
-            sort_by=arxiv.SortCriterion.SubmittedDate
+            sort_by=arxiv.SortCriterion.Relevance
         )
         
         client = arxiv.Client()

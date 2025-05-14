@@ -32,6 +32,8 @@ class LLMProcessor:
             f"Known Keywords: {known_kw_str}\n\n"
             f"Title: {title}\n\n"
             f"Abstract: {abstract}"
+            f"Keywords should be broad enough such that multiple papers can fit into it but still sufficiently specific.\n"
+            "Each keyword should be short (no more than 3-4 words)"
         )
         
         try:
@@ -60,7 +62,9 @@ class LLMProcessor:
             "Return only the domain name, no explanation.\n\n"
             f"Available Domains: {domain_list}\n\n"
             f"Title: {title}\n\n"
-            f"Abstract: {abstract}"
+            f"Abstract: {abstract} \n"
+            f"Domain should be broad enough such that multiple papers can fit into it but not all. For example, representation learning or contrastive learning are valid, but machine learning is not. \n"
+            "The domain should be short (no more than 3-4 words)"
         )
         
         try:

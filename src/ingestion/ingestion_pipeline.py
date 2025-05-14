@@ -9,6 +9,7 @@ from .paper_parser import PaperParser
 from .llm_processor import LLMProcessor
 import os
 import arxiv
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class IngestionPipeline:
         self.papers = valid_papers
         self.paper_ids = valid_ids
     
-    def process_cited_papers(self) -> None:
+    def process_cited_papers(self,max_extensions:int = 1) -> None:
         """Process cited papers."""
         cited_papers = []
         original_paper_ids = self.paper_ids.copy()
@@ -148,7 +149,7 @@ class IngestionPipeline:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_cited_papers(arxiv_id, paper['title'])
             
-            for citation in citations[:5]:
+            for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
                     self.citation_link[cited_arxiv_id] = arxiv_id
@@ -170,18 +171,21 @@ class IngestionPipeline:
                         'title': title
                     })
                     logger.info(f"Found cited paper: {cited_arxiv_id}")
-        
+        papers = self.papers.copy()
+        self.papers = []
         if cited_papers:
-            self.paper_ids = [p['paper_id'] for p in cited_papers[:10]]
+            self.paper_ids = [p['paper_id'] for p in cited_papers]
             self.download_and_extract()
             self.organize_files()
             self.fetch_metadata()
             self.process_files()
             self.parse_papers()
-            self.cited_paper_ids = self.paper_ids.copy()
-            self.paper_ids = original_paper_ids
+        self.cited_paper_ids = self.paper_ids.copy()
+        self.paper_ids = original_paper_ids
+        papers.extend(self.papers)
+        self.papers = papers.copy()
     
-    def process_citing_papers(self) -> None:
+    def process_citing_papers(self,max_extensions:int = 1) -> None:
         """Process citing papers."""
         citing_papers = []
         original_paper_ids = self.paper_ids.copy()
@@ -190,7 +194,7 @@ class IngestionPipeline:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_citing_papers(arxiv_id, paper['title'])
             
-            for citation in citations[:5]:
+            for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
                     self.citation_link[cited_arxiv_id] = arxiv_id
@@ -212,22 +216,26 @@ class IngestionPipeline:
                         'title': title
                     })
                     logger.info(f"Found citing paper: {cited_arxiv_id}")
-        
+        papers = self.papers.copy()
+        self.papers = []
         if citing_papers:
-            self.paper_ids = [p['paper_id'] for p in citing_papers[:10]]
+            self.paper_ids = [p['paper_id'] for p in citing_papers]
             self.download_and_extract()
             self.organize_files()
             self.fetch_metadata()
             self.process_files()
             self.parse_papers()
-            self.citing_paper_ids = self.paper_ids.copy()
-            self.paper_ids = original_paper_ids
+        self.citing_paper_ids = self.paper_ids.copy()
+        self.paper_ids = original_paper_ids
+        papers.extend(self.papers)
+        self.papers = papers.copy()
     
     def enrich_with_keywords_and_domains(self) -> None:
         """Enrich papers with keywords and domains."""
         known_keywords = self.supabase_client.get_existing_keywords()
         known_domains = self.supabase_client.get_existing_domains()
         
+        print("Went into enrich")
         for i, paper in enumerate(self.papers):
             if not paper.get('paper_id'):
                 continue
@@ -257,6 +265,24 @@ class IngestionPipeline:
                 f.write(json.dumps(paper) + "\n")
         logger.info(f"Saved parsed data at: {output_path}")
     
+    def delete_latex(self):
+        """Delete downloaded and extracted LaTeX directories."""
+        shutil.rmtree(self.output_dir)
+        # all_ids = set(self.paper_ids)
+        # if hasattr(self, 'cited_paper_ids'):
+        #     all_ids.update(self.cited_paper_ids)
+        # if hasattr(self, 'citing_paper_ids'):
+        #     all_ids.update(self.citing_paper_ids)
+        
+        # for paper_id in all_ids:
+        #     dir_path = os.path.join(self.output_dir, paper_id)
+        #     if os.path.isdir(dir_path):
+        #         try:
+        #             shutil.rmtree(dir_path)
+        #             logger.info(f"Deleted LaTeX directory for {paper_id}")
+        #         except Exception as e:
+        #             logger.error(f"Failed to delete {dir_path}: {e}")
+    
     def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3) -> List[Dict]:
         """Run the complete ingestion pipeline.
         
@@ -278,4 +304,21 @@ class IngestionPipeline:
         self.enrich_with_keywords_and_domains()
         self.papers.append({"citation_links": self.citation_link})
         self.save_papers()
+        self.delete_latex()
+        # try:
+        #     self.fetch_papers(query, num_papers)
+        #     self.download_and_extract()
+        #     self.organize_files()
+        #     self.fetch_metadata()
+        #     self.process_files()
+        #     self.parse_papers()
+        #     self.process_cited_papers()
+        #     self.process_citing_papers()
+        #     self.enrich_with_keywords_and_domains()
+        #     self.papers.append({"citation_links": self.citation_link})
+        #     self.save_papers()
+        # except:
+        #     return self.papers
+        # finally:
+        #     self.delete_latex()
         return self.papers

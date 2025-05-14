@@ -1,0 +1,101 @@
+import logging
+from typing import List, Dict, Tuple
+from ..transformation.db_utils import DBUtils
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class PaperStorage:
+    """Stores paper metadata in Supabase."""
+    
+    def __init__(self):
+        self.db_utils = DBUtils()
+    
+    def store_papers(self, papers: List[Dict], authors: List[Dict], paper_authors: List[Dict], 
+                    keywords: List[Dict], paper_keywords: List[Dict], sections: List[Dict], 
+                    citations: List[Dict], paper_id_mapping: Dict) -> Dict:
+        """Store papers, authors, keywords, sections, and citations in Supabase.
+        
+        Args:
+            papers: Paper metadata with input_paper_id
+            authors: Author metadata
+            paper_authors: Paper-author mappings with input_paper_id and author_key
+            keywords: Keyword metadata
+            paper_keywords: Paper-keyword mappings with input_paper_id and keyword_key
+            sections: Section metadata with input_paper_id
+            citations: Citation relationships with input/cited_input_paper_id
+            paper_id_mapping: Dict to store input_paper_id to UUID mappings
+        
+        Returns:
+            Updated paper_id_mapping
+        """
+        # Insert authors and retrieve author_id
+        author_keys = {a['name'].lower(): None for a in authors}
+        author_ids = self.db_utils.insert_postgres('authors', authors, returning='author_id')
+        for key, author_id in zip(author_keys.keys(), author_ids):
+            author_keys[key] = author_id
+        
+        # Insert keywords and retrieve keyword_id
+        keyword_keys = {k['name'].lower(): None for k in keywords}
+        keyword_ids = self.db_utils.insert_postgres('keywords', keywords, returning='keyword_id')
+        for key, keyword_id in zip(keyword_keys.keys(), keyword_ids):
+            keyword_keys[key] = keyword_id
+        
+        # Insert papers and retrieve paper_id
+        papers_for_insert = [{k: v for k, v in p.items() if k != 'input_paper_id'} for p in papers]
+        paper_ids = self.db_utils.insert_postgres('papers', papers_for_insert, returning='paper_id')
+        for input_id, paper_id in zip([p['input_paper_id'] for p in papers], paper_ids):
+            paper_id_mapping[input_id] = str(paper_id)
+        
+        # Update paper_authors with UUIDs
+        paper_authors_updated = [
+            {
+                'paper_id': paper_id_mapping[pa['input_paper_id']],
+                'author_id': author_keys[pa['author_key']],
+                'author_order': pa['author_order']
+            }
+            for pa in paper_authors
+            if pa['input_paper_id'] in paper_id_mapping and pa['author_key'] in author_keys
+        ]
+        self.db_utils.insert_postgres('paper_authors', paper_authors_updated)
+        
+        # Update paper_keywords with UUIDs
+        paper_keywords_updated = [
+            {
+                'paper_id': paper_id_mapping[pk['input_paper_id']],
+                'keyword_id': keyword_keys[pk['keyword_key']]
+            }
+            for pk in paper_keywords
+            if pk['input_paper_id'] in paper_id_mapping and pk['keyword_key'] in keyword_keys
+        ]
+        self.db_utils.insert_postgres('paper_keywords', paper_keywords_updated)
+        
+        # Update sections with UUIDs
+        sections_updated = [
+            {
+                'paper_id': paper_id_mapping[s['input_paper_id']],
+                'section_type': s['section_type'],
+                'object_path': s['object_path']
+            }
+            for s in sections
+            if s['input_paper_id'] in paper_id_mapping
+        ]
+        section_ids = self.db_utils.insert_postgres('sections', sections_updated, returning='section_id')
+        
+        # Update citations with UUIDs
+        citations_updated = [
+            {
+                'citing_paper_id': paper_id_mapping[c['citing_input_paper_id']],
+                'cited_paper_id': paper_id_mapping.get(c['cited_input_paper_id'], None)
+            }
+            for c in citations
+            if c['citing_input_paper_id'] in paper_id_mapping and c['cited_input_paper_id'] in paper_id_mapping
+        ]
+        # Filter out citations with missing cited_paper_id
+        citations_valid = [c for c in citations_updated if c['cited_paper_id'] is not None]
+        self.db_utils.insert_postgres('citations', citations_valid)
+        
+        logger.info(f"Stored {len(papers)} papers, {len(authors)} authors, {len(paper_authors_updated)} paper_authors, "
+                    f"{len(keywords)} keywords, {len(paper_keywords_updated)} paper_keywords, {len(sections_updated)} sections, "
+                    f"{len(citations_valid)} citations in Supabase")
+        return paper_id_mapping

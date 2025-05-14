@@ -2,6 +2,7 @@ import requests
 import time
 import logging
 from typing import List, Dict, Any
+import xml.etree.ElementTree as ET
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ class SemanticScholarClient:
         self.base_url = "https://api.semanticscholar.org/graph/v1"
         self.rate_limit_delay = 1.0
     
-    def retry_request(self, method: str, url: str, max_retries: int = 5, backoff_factor: int = 2, **kwargs) -> requests.Response:
+    def retry_request(self, method: str, url: str, max_retries: int = 5, time_out: int = 2, **kwargs) -> requests.Response:
         """Generic retry logic for API requests with exponential backoff."""
         for attempt in range(1, max_retries + 1):
             try:
@@ -21,11 +22,12 @@ class SemanticScholarClient:
                 if response.status_code == 429:
                     logger.warning("Rate limited. Waiting before retry...")
                 response.raise_for_status()
+                logging.info(f"Got response for request {url}")
                 return response
             except requests.exceptions.RequestException as e:
                 logger.error(f"[Attempt {attempt}] API error: {e}")
                 if attempt < max_retries:
-                    time.sleep(backoff_factor ** attempt)
+                    time.sleep(time_out * attempt)
                 else:
                     logger.error("Max retries exceeded.")
                     raise
@@ -42,7 +44,7 @@ class SemanticScholarClient:
         """
         query_url = f"{self.base_url}/paper/arXiv:{arxiv_id}"
         params = {
-            "fields": "paperId,title,authors.name,authors.authorId,authors.affiliations,year,externalIds,venue,journal,url,doi,citationCount,influentialCitationCount"
+            "fields": "paperId,title,authors.name,authors.authorId,authors.affiliations,year,externalIds,venue,journal,url,citationCount,influentialCitationCount"
         }
         
         try:
@@ -142,6 +144,25 @@ class SemanticScholarClient:
             logger.error(f"Failed to fetch paper data: {e}")
             return {}
     
+    def search_arxiv_by_title(self,title:str):
+        """Search arXiv API using paper title."""
+        query = f"http://export.arxiv.org/api/query?search_query=ti:\"{title}\"&start=0&max_results=1"
+        try:
+            resp = requests.get(query)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.text)
+            ns = {"atom": "http://www.w3.org/2005/Atom"}
+            entry = root.find("atom:entry", ns)
+            if entry is not None:
+                id_elem = entry.find("atom:id", ns)
+                if id_elem is not None:
+                    arxiv_url = id_elem.text.strip()
+                    return arxiv_url.split('/')[-1]  # Extract arXiv ID
+        except Exception as e:
+            print(f"arXiv fallback error: {e}")
+            return None
+        return None
+    
     def extract_paper_info(self, papers: List[Dict], max_results: int = 100) -> List[Dict]:
         """Standardize and enrich paper data.
         
@@ -155,7 +176,14 @@ class SemanticScholarClient:
         results = []
         arxiv_count = 0
         for paper in papers:
-            arxiv_id = paper.get("externalIds", {}).get("ArXiv")
+            try:
+                arxiv_id = paper.get("externalIds", {}).get("ArXiv")
+            except:
+                # if paper.get('title'):
+                #     arxiv_id = self.search_arxiv_by_title([papers['title']])
+                # else:
+                #     continue
+                arxiv_id = None
             if arxiv_id:
                 arxiv_count += 1
                 results.append({
@@ -186,6 +214,8 @@ class SemanticScholarClient:
             return []
         if paper_title and data.get("title", "").lower() != paper_title.lower():
             logger.warning(f"Title mismatch: Found '{data.get('title')}'")
+        if not data.get("citations"):
+            return []
         return self.extract_paper_info(data.get("citations", []), max_results)
     
     def get_cited_papers(self, arxiv_id: str, paper_title: str = None, max_results: int = 100) -> List[Dict]:
@@ -201,7 +231,11 @@ class SemanticScholarClient:
         """
         data = self.fetch_paper_data(arxiv_id)
         if not data:
-            return []
+            return {}
         if paper_title and data.get("title", "").lower() != paper_title.lower():
             logger.warning(f"Title mismatch: Found '{data.get('title')}'")
+        print(data)
+        if not data.get("references"):
+            print(data.get('references'))
+            return {}
         return self.extract_paper_info(data.get("references", []), max_results)
