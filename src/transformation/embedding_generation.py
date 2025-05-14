@@ -25,6 +25,7 @@ class EmbeddingGenerator:
             List of embedding records
         """
         entities = []
+        paper_ids = []
         with open(input_path, 'r') as f:
             for line in f:
                 paper = json.loads(line.strip())
@@ -34,14 +35,15 @@ class EmbeddingGenerator:
                 embedding = self.model.encode(text, show_progress_bar=False).tolist()
                 entities.append({
                     "paper_id": paper_id_mapping[paper['paper_id']],
-                    "section_id": str(uuid.uuid4()),
+                    "section_id": "full paper",
                     "embedding": embedding,
                     "chunk_id": str(0),
                     "created_at": datetime.utcnow().isoformat()
                 })
+                paper_ids.append(paper_id_mapping[paper['paper_id']])
         
         logger.info(f"Generated {len(entities)} paper embeddings")
-        return entities
+        return entities, paper_ids
     
     def _combine_text(self, paper: Dict) -> str:
         """Combine relevant text fields for embedding."""

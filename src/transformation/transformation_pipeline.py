@@ -37,17 +37,23 @@ class TransformationPipeline:
             Dict: Pipeline results
         """
         # Transform paper metadata
-        papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping = \
+        data_json, papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping = \
             self.paper_transformer.transform_papers(self.input_path)
-        
+
         # Store in Supabase and update paper_id_mapping
         paper_id_mapping = self.paper_storage.store_papers(
             papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping
         )
         
+
+
         # Generate and store paper embeddings
-        embeddings = self.embedding_generator.generate_embeddings(self.input_path, paper_id_mapping)
-        self.embedding_storage.store_embeddings(embeddings)
+        embeddings, paper_ids = self.embedding_generator.generate_embeddings(self.input_path, paper_id_mapping)
+        pk = self.embedding_storage.store_embeddings(embeddings)
+        self.embedding_storage.store_embedding_id(paper_ids,pk)
+        print(len(data_json), len(paper_ids))
+        # Store object jsons and update their paths
+        self.paper_storage.store_json(paper_ids,data_json)
         
         # Build and store citation graph
         nodes, edges = self.citation_graph.build_graph(self.input_path)
@@ -61,9 +67,9 @@ class TransformationPipeline:
         pagerank = self.citation_graph.compute_metrics(nodes, edges)
         
         # Chunk sections and store embeddings
-        chunks = self.content_chunker.chunk_content(self.input_path, paper_id_mapping)
-        self.chunk_storage.store_chunks(chunks)
-        
+        chunks, section_records = self.content_chunker.chunk_content(self.input_path, paper_id_mapping)
+        pk = self.chunk_storage.store_chunks(chunks)
+        self.chunk_storage.store_section_embedding_ids(section_records, pk)
         results = {
             'pagerank': pagerank,
             'status': 'Transformations and storage completed in Supabase, Milvus, and Dgraph'

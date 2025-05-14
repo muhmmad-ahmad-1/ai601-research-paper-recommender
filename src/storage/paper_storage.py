@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Tuple
 from ..transformation.db_utils import DBUtils
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,3 +102,62 @@ class PaperStorage:
                     f"{len(keywords)} keywords, {len(paper_keywords_updated)} paper_keywords, {len(sections_updated)} sections, "
                     f"{len(citations_valid)} citations in Supabase")
         return paper_id_mapping
+
+    def store_json(self, paper_ids: List[str], data_json: List[dict]) -> List[str]:
+        """
+        Stores each paper's JSON data in Supabase object storage and updates
+        object_path field in 'papers' and 'sections' tables.
+
+        Args:
+            paper_ids: List of UUIDs for the papers.
+            data_json: List of paper data dicts (same order as paper_ids).
+
+        Returns:
+            List of object storage paths for each uploaded paper.
+        """
+        if len(paper_ids) != len(data_json):
+            raise ValueError("Length of paper_ids and data_json must match.")
+
+        paths = []
+        bucket = "paper-jsons"
+
+        for paper_id, json_data in zip(paper_ids, data_json):
+            path = f"{paper_id}/paper.json"
+            full_path = f"{bucket}/{path}"
+            content = json.dumps(json_data).encode("utf-8")
+
+            try:
+                # Delete existing file if needed (optional safeguard)
+                self.db_utils.supabase_client.storage.from_(bucket).remove([path])
+
+                # Upload JSON file to Supabase Storage
+                self.db_utils.supabase_client.storage.from_(bucket).upload(
+                    path=path,
+                    file=content,
+                    file_options={"content-type": "application/json"}
+                )
+
+                # Update 'papers' table
+                self.db_utils.update_postgres(
+                    table_name='papers',
+                    row={'paper_id': paper_id},
+                    data={'object_path': full_path},
+                    pk='paper_id'
+                )
+
+                # Update all 'sections' for this paper
+                self.db_utils.supabase_client.table('sections') \
+                    .update({'object_path': full_path}) \
+                    .eq('paper_id', paper_id).execute()
+
+                paths.append(full_path)
+
+            except Exception as e:
+                logger.error(f"Failed to upload or update paper {paper_id}: {e}")
+                paths.append(None)
+
+        logger.info(f"Uploaded {len([p for p in paths if p is not None])} paper JSONs and updated DB.")
+        return paths
+
+
+        

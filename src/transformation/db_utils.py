@@ -5,7 +5,7 @@ import uuid
 from supabase import create_client
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import pydgraph
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -86,6 +86,66 @@ class DBUtils:
         except Exception as e:
             logger.error(f"Failed to insert into {table_name}: {e}")
             raise
+    
+    def update_postgres(self, table_name: str, row: dict, data: dict, pk: Union[str, List[str]]):
+        """
+        Update a row in a Supabase table.
+
+        Args:
+            table_name: Name of the table to update.
+            row: Dictionary containing the current row's identifying data (usually the PK).
+            data: Dictionary containing the data to update.
+            pk: Primary key field name(s) — either a string or a list of strings.
+        
+        Returns:
+            The updated record (if returned by Supabase).
+        """
+        try:
+            query = self.supabase_client.table(table_name).update(data)
+            
+            if isinstance(pk, list):
+                for key in pk:
+                    query = query.eq(key, row[key])
+            else:
+                query = query.eq(pk, row[pk])
+
+            response = query.execute()
+
+            if not response.data:
+                raise Exception(f"Update failed or no data returned: {response}")
+            
+            return response.data
+        except Exception as e:
+            if isinstance(pk, list):
+                pk_str = ", ".join([f"{k}={row[k]}" for k in pk])
+            else:
+                pk_str = f"{pk}={row[pk]}"
+            logger.error(f"Failed to update {table_name} where {pk_str}: {e}")
+            raise
+
+
+
+    
+    def get_section_id(self,paper_id:str,section_name:str) -> str:
+        try:
+            response = (
+                self.supabase_client
+                .table("sections")
+                .select("section_id")
+                .eq("paper_id", paper_id)
+                .eq("section_type", section_name)
+                .limit(1)
+                .execute()
+            )
+
+            if response.data and len(response.data) > 0:
+                return response.data[0]["section_id"]
+
+            raise ValueError(f"Section not found for paper_id={paper_id} and section_name={section_name}")
+    
+        except Exception as e:
+            logger.error(f"Failed to retrieve section_id from Supabase: {e}")
+            raise
 
 
     def execute_dql_query(self, query: str, variables: Dict[str, Any] = None) -> Dict:
@@ -109,14 +169,6 @@ class DBUtils:
             return res.uids
         finally:
             txn.discard()
-
-    def set_schema(self, schema: str):
-        try:
-            self.dgraph_client.alter(pydgraph.Operation(schema=schema))
-            logger.info("Schema set successfully.")
-        except Exception as e:
-            logger.error(f"Failed to set schema: {e}")
-            raise
 
     def drop_all(self):
         try:

@@ -19,6 +19,7 @@ class PaperTransformer:
             Tuple of papers, authors, paper_authors, keywords, paper_keywords, sections, citations, 
             and mapping of input paper_id to UUID
         """
+        data_json = []
         papers = []
         authors = []
         paper_authors = []
@@ -35,7 +36,7 @@ class PaperTransformer:
                 data = json.loads(line.strip())
                 if 'paper_id' not in data:
                     continue
-                
+                data_json.append(data)
                 input_paper_id = data['paper_id']  # e.g., arXiv ID
                 # Paper
                 date_str = data.get('date', '')
@@ -61,7 +62,8 @@ class PaperTransformer:
                     'abstract': data.get('abstract', None),
                     'citation_count': data.get('citationCount', 0),
                     'influential_citation_count': data.get('influentialCitationCount',0),
-                    'arxiv_id':arxiv_id
+                    'arxiv_id':arxiv_id,
+                    'domain': data.get('domain',None)
                 })
                 
                 # Authors
@@ -74,8 +76,9 @@ class PaperTransformer:
                         existing_authors[author_key] = {
                             'name': author_name,
                             'affiliation': author.get('affiliation', None),
-                            'h5_index': author.get('h5_index', None),
-                            'citation_count': author.get('citation_count', None)
+                            'h_index': author.get('hIndex', None),
+                            'citation_count': author.get('citationCount', None),
+                            'influential_citation_count': author.get('influentialCitationCount', None)
                         }
                     paper_authors.append({
                         'input_paper_id': input_paper_id,
@@ -115,10 +118,10 @@ class PaperTransformer:
         
         # Convert author/keyword dicts to lists
         authors = [{'name': data['name'], 'affiliation': data['affiliation'], 
-                    'h5_index': data['h5_index'], 'citation_count': data['citation_count']}
+                    'h_index': data['h_index'], 'citation_count': data['citation_count'], 'influential_citation_count':data['influential_citation_count']}
                    for data in existing_authors.values()]
         keywords = [{'name': data['name']} for data in existing_keywords.values()]
         
         logger.info(f"Transformed {len(papers)} papers, {len(authors)} authors, {len(keywords)} keywords, "
                     f"{len(sections)} sections, {len(citations)} citations")
-        return papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping
+        return data_json,papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping
