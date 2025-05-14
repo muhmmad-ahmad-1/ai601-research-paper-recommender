@@ -73,6 +73,24 @@ class PaperTransformer:
                     if not author_name:
                         continue
                     author_key = author_name.lower()
+                    author_h_index = author.get('hIndex',None) if author.get('hIndex',None) != 'N/A' else None
+                    citation_count = author.get('citationCount',None) if author.get('citationCount',None) != 'N/A' else None
+                    influential_citation_count = author.get('influentialCitationCount',None) if author.get('influentialCitationCount',None) != 'N/A' else None
+
+                    
+                    if author_key not in existing_authors:
+                        existing_authors[author_key] = {
+                            'name': author_name,
+                            'affiliation': author.get('affiliation', None),
+                            'h_index': author_h_index,
+                            'citation_count': citation_count,
+                            'influential_citation_count': influential_citation_count
+                        }
+                    paper_authors.append({
+                        'input_paper_id': input_paper_id,
+                        'author_key': author_key,
+                        'author_order': idx + 1
+                    })
                     if author_key not in existing_authors:
                         existing_authors[author_key] = {
                             'name': author_name,

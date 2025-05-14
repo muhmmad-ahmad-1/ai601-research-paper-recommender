@@ -45,8 +45,6 @@ class TransformationPipeline:
             papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping
         )
         
-
-
         # Generate and store paper embeddings
         embeddings, paper_ids = self.embedding_generator.generate_embeddings(self.input_path, paper_id_mapping)
         pk = self.embedding_storage.store_embeddings(embeddings)
