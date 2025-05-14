@@ -63,7 +63,8 @@ class PaperTransformer:
                     'citation_count': data.get('citationCount', 0),
                     'influential_citation_count': data.get('influentialCitationCount',0),
                     'arxiv_id':arxiv_id,
-                    'domain': data.get('domain',None)
+                    'domain': data.get('domain',None),
+                    'summary: data.get('summary',None),
                 })
                 
                 # Authors
