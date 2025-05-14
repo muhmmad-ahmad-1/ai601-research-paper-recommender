@@ -230,8 +230,8 @@ class IngestionPipeline:
         papers.extend(self.papers)
         self.papers = papers.copy()
     
-    def enrich_with_keywords_and_domains(self) -> None:
-        """Enrich papers with keywords and domains."""
+    def enrich_paper_metadata(self) -> None:
+        """Enrich papers with keywords and domain name and summary."""
         known_keywords = self.supabase_client.get_existing_keywords()
         known_domains = self.supabase_client.get_existing_domains()
         
@@ -244,15 +244,22 @@ class IngestionPipeline:
             if not title or not abstract:
                 logger.warning(f"Missing title or abstract for paper {paper['paper_id']}")
                 continue
-            keywords = self.llm_processor.get_keywords(title, abstract, known_keywords)
+
+            metadata = self.llm_processor.run_agentic_worflow(title, abstract, known_keywords, known_domains)
+            keywords, domain, summary = metadata['keywords'], metadata['domain'], metadata['summary']
+            
+                
             if keywords:
                 paper["keywords"] = keywords
                 logger.info(f"Generated keywords for paper {paper['paper_id']}")
-            
-            domain = self.llm_processor.get_domain(title, abstract, known_domains)
+          
             if domain:
                 paper["domain"] = domain
                 logger.info(f"Generated domain for paper {paper['paper_id']}")
+
+            if summary:
+                paper["summary"] = summary
+                logger.info(f"Generated summary for paper {paper['paper_id']}")
     
     def save_papers(self, output_path: str = "parsed_papers.jsonl") -> None:
         """Save processed papers to JSONL file.
@@ -301,7 +308,7 @@ class IngestionPipeline:
         self.parse_papers()
         self.process_cited_papers()
         self.process_citing_papers()
-        self.enrich_with_keywords_and_domains()
+        self.enrich_paper_metadata()
         self.papers.append({"citation_links": self.citation_link})
         self.save_papers()
         self.delete_latex()
