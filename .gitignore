@@ -177,3 +177,6 @@ cython_debug/
 *.ipynb
 *.json
 *.jsonl
+*.bbl
+temp_db.py
+ingestion_pipeline.py

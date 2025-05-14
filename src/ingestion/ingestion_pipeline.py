@@ -1,0 +1,281 @@
+import json
+import logging
+from typing import List, Dict, Optional
+from .arxiv_client import ArxivClient
+from .semantic_scholar_client import SemanticScholarClient
+from .supabase_client import SupabaseClient
+from .file_processor import FileProcessor
+from .paper_parser import PaperParser
+from .llm_processor import LLMProcessor
+import os
+import arxiv
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class IngestionPipeline:
+    """Orchestrates the paper ingestion pipeline."""
+    
+    def __init__(self, output_dir: str = "papers_latex"):
+        """Initialize the ingestion pipeline.
+        
+        Args:
+            output_dir (str): Directory to store downloaded and processed papers
+        """
+        self.output_dir = output_dir
+        self.paper_ids = []
+        self.final_tex_files = {}
+        self.papers = []
+        self.citation_link = {}
+        
+        self.arxiv_client = ArxivClient()
+        self.semantic_scholar_client = SemanticScholarClient()
+        self.supabase_client = SupabaseClient()
+        self.file_processor = FileProcessor(output_dir)
+        self.paper_parser = PaperParser()
+        self.llm_processor = LLMProcessor(os.getenv("OPENROUTER_API_KEY"))
+    
+    def fetch_papers(self, query: Optional[str] = None, num_papers: int = 3) -> None:
+        """Fetch paper IDs from arXiv.
+        
+        Args:
+            query (Optional[str]): Search query
+            num_papers (int): Number of papers to fetch
+        """
+        if query:
+            self.paper_ids = self.arxiv_client.search_papers(query, num_papers)
+        else:
+            self.paper_ids = self.arxiv_client.fetch_latest_papers(num_papers)
+    
+    def download_and_extract(self) -> None:
+        """Download and extract papers."""
+        valid_ids = []
+        for arxiv_id in self.paper_ids:
+            if self.arxiv_client.download_paper(arxiv_id, self.output_dir):
+                if self.file_processor.extract_tar(arxiv_id):
+                    valid_ids.append(arxiv_id)
+                else:
+                    self.file_processor.cleanup(arxiv_id)
+            else:
+                self.file_processor.cleanup(arxiv_id)
+        self.paper_ids = valid_ids
+    
+    def organize_files(self) -> None:
+        """Organize LaTeX and citation files."""
+        self.final_tex_files = {}
+        valid_ids = []
+        for arxiv_id in self.paper_ids:
+            file_info = self.file_processor.organize_files(arxiv_id)
+            if file_info["tex_file_count"] > 0:
+                self.final_tex_files[arxiv_id] = file_info
+                valid_ids.append(arxiv_id)
+            self.file_processor.cleanup(arxiv_id)
+        self.paper_ids = valid_ids
+    
+    def fetch_metadata(self) -> None:
+        """Fetch paper metadata from arXiv and Semantic Scholar."""
+        search = arxiv.Search(id_list=self.paper_ids)
+        client = arxiv.Client()
+        results = list(client.results(search))
+        
+        valid_ids = []
+        for result in results:
+            abstract_cleaned = result.summary.replace('\n', ' ').strip()
+            full_id = result.get_short_id()
+            base_id = full_id.split('v')[0]
+            published_date = result.published
+            
+            paper_data = {
+                'paper_id': base_id,
+                'paper_url': result.entry_id,
+                'title': result.title,
+                'abstract': abstract_cleaned,
+                'year': result.published.year,
+                'date': published_date.strftime('%d-%m-%Y')
+            }
+            
+            additional_data = self.semantic_scholar_client.get_paper_metadata(base_id, result.title)
+            paper_data.update(additional_data)
+            
+            if (self.final_tex_files[base_id]['tex_file_count'] < 1 or 
+                not result.title or 
+                not paper_data.get('authors')):
+                logger.warning(f"Invalid paper data for {base_id}")
+                self.file_processor.cleanup(base_id)
+                continue
+            
+            self.papers.append(paper_data)
+            valid_ids.append(base_id)
+        
+        self.paper_ids = valid_ids
+    
+    def process_files(self) -> None:
+        """Process LaTeX files."""
+        valid_ids = []
+        for arxiv_id in self.paper_ids:
+            if arxiv_id in self.final_tex_files:
+                self.file_processor.process_tex_files(arxiv_id, self.final_tex_files[arxiv_id])
+                valid_ids.append(arxiv_id)
+        self.paper_ids = valid_ids
+    
+    def parse_papers(self) -> None:
+        """Parse papers to extract sections and citations."""
+        valid_papers = []
+        valid_ids = []
+        for paper in self.papers:
+            base_id = paper['paper_id']
+            filepath = os.path.join(
+                self.output_dir,
+                base_id,
+                self.final_tex_files[base_id]['dest']
+            )
+            paper_data = self.paper_parser.parse_tex(filepath, paper)
+            if paper_data and paper_data.get('sections'):
+                valid_papers.append(paper_data)
+                valid_ids.append(base_id)
+            else:
+                self.file_processor.cleanup(base_id)
+        
+        self.papers = valid_papers
+        self.paper_ids = valid_ids
+    
+    def process_cited_papers(self) -> None:
+        """Process cited papers."""
+        cited_papers = []
+        original_paper_ids = self.paper_ids.copy()
+        
+        for paper in self.papers:
+            arxiv_id = paper['paper_id']
+            citations = self.semantic_scholar_client.get_cited_papers(arxiv_id, paper['title'])
+            
+            for citation in citations[:5]:
+                cited_arxiv_id = citation.get('arxivId')
+                if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
+                    self.citation_link[cited_arxiv_id] = arxiv_id
+                    cited_papers.append({
+                        'paper_id': cited_arxiv_id,
+                        'title': citation.get('title', '')
+                    })
+                    continue
+                
+                title = citation.get('title', '')
+                if not title:
+                    continue
+                
+                cited_arxiv_id = self.arxiv_client.search_by_title(title)
+                if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
+                    self.citation_link[cited_arxiv_id] = arxiv_id
+                    cited_papers.append({
+                        'paper_id': cited_arxiv_id,
+                        'title': title
+                    })
+                    logger.info(f"Found cited paper: {cited_arxiv_id}")
+        
+        if cited_papers:
+            self.paper_ids = [p['paper_id'] for p in cited_papers[:10]]
+            self.download_and_extract()
+            self.organize_files()
+            self.fetch_metadata()
+            self.process_files()
+            self.parse_papers()
+            self.cited_paper_ids = self.paper_ids.copy()
+            self.paper_ids = original_paper_ids
+    
+    def process_citing_papers(self) -> None:
+        """Process citing papers."""
+        citing_papers = []
+        original_paper_ids = self.paper_ids.copy()
+        
+        for paper in self.papers:
+            arxiv_id = paper['paper_id']
+            citations = self.semantic_scholar_client.get_citing_papers(arxiv_id, paper['title'])
+            
+            for citation in citations[:5]:
+                cited_arxiv_id = citation.get('arxivId')
+                if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
+                    self.citation_link[cited_arxiv_id] = arxiv_id
+                    citing_papers.append({
+                        'paper_id': cited_arxiv_id,
+                        'title': citation.get('title', '')
+                    })
+                    continue
+                
+                title = citation.get('title', '')
+                if not title:
+                    continue
+                
+                cited_arxiv_id = self.arxiv_client.search_by_title(title)
+                if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
+                    self.citation_link[cited_arxiv_id] = arxiv_id
+                    citing_papers.append({
+                        'paper_id': cited_arxiv_id,
+                        'title': title
+                    })
+                    logger.info(f"Found citing paper: {cited_arxiv_id}")
+        
+        if citing_papers:
+            self.paper_ids = [p['paper_id'] for p in citing_papers[:10]]
+            self.download_and_extract()
+            self.organize_files()
+            self.fetch_metadata()
+            self.process_files()
+            self.parse_papers()
+            self.citing_paper_ids = self.paper_ids.copy()
+            self.paper_ids = original_paper_ids
+    
+    def enrich_with_keywords_and_domains(self) -> None:
+        """Enrich papers with keywords and domains."""
+        known_keywords = self.supabase_client.get_existing_keywords()
+        known_domains = self.supabase_client.get_existing_domains()
+        
+        for i, paper in enumerate(self.papers):
+            if not paper.get('paper_id'):
+                continue
+            title = paper.get("title", "")
+            abstract = paper.get("abstract", "")
+            if not title or not abstract:
+                logger.warning(f"Missing title or abstract for paper {paper['paper_id']}")
+                continue
+            keywords = self.llm_processor.get_keywords(title, abstract, known_keywords)
+            if keywords:
+                paper["keywords"] = keywords
+                logger.info(f"Generated keywords for paper {paper['paper_id']}")
+            
+            domain = self.llm_processor.get_domain(title, abstract, known_domains)
+            if domain:
+                paper["domain"] = domain
+                logger.info(f"Generated domain for paper {paper['paper_id']}")
+    
+    def save_papers(self, output_path: str = "parsed_papers.jsonl") -> None:
+        """Save processed papers to JSONL file.
+        
+        Args:
+            output_path (str): Path to save the JSONL file
+        """
+        with open(output_path, "w") as f:
+            for paper in self.papers:
+                f.write(json.dumps(paper) + "\n")
+        logger.info(f"Saved parsed data at: {output_path}")
+    
+    def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3) -> List[Dict]:
+        """Run the complete ingestion pipeline.
+        
+        Args:
+            query (Optional[str]): Search query
+            num_papers (int): Number of papers to process
+            
+        Returns:
+            List[Dict]: Processed papers
+        """
+        self.fetch_papers(query, num_papers)
+        self.download_and_extract()
+        self.organize_files()
+        self.fetch_metadata()
+        self.process_files()
+        self.parse_papers()
+        self.process_cited_papers()
+        self.process_citing_papers()
+        self.enrich_with_keywords_and_domains()
+        self.papers.append({"citation_links": self.citation_link})
+        self.save_papers()
+        return self.papers
