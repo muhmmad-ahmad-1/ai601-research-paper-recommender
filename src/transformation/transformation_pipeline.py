@@ -1,4 +1,3 @@
-import logging
 from typing import Dict
 from src.transformation import (
     PaperTransformer,
@@ -13,23 +12,24 @@ from src.storage import (
     ChunkStorage
 )
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# import logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
 
 class TransformationPipeline:
     """Orchestrates transformations and storage for RAG and analytics."""
     
-    def __init__(self, input_path: str = "parsed_papers.jsonl"):
+    def __init__(self, input_path: str = "parsed_papers.jsonl", logger=None):
         self.input_path = input_path
-        self.paper_transformer = PaperTransformer()
-        self.embedding_generator = EmbeddingGenerator()
-        self.citation_graph = CitationGraph()
-        self.content_chunker = ContentChunker()
-        self.paper_storage = PaperStorage()
-        self.embedding_storage = EmbeddingStorage()
-        self.graph_storage = GraphStorage()
-        self.chunk_storage = ChunkStorage()
-    
+        self.paper_transformer = PaperTransformer(logger)
+        self.embedding_generator = EmbeddingGenerator("thenlper/gte-large", logger)
+        self.citation_graph = CitationGraph(logger)
+        self.content_chunker = ContentChunker("thenlper/gte-large", 10000, 200, logger)
+        self.paper_storage = PaperStorage(logger)
+        self.embedding_storage = EmbeddingStorage("paper_embeddings", logger)
+        self.graph_storage = GraphStorage(logger)
+        self.chunk_storage = ChunkStorage("paper_embeddings", logger)
+        self.logger = logger
     def run_pipeline(self) -> Dict:
         """Run transformations and store results in databases.
         
@@ -41,7 +41,7 @@ class TransformationPipeline:
             self.paper_transformer.transform_papers(self.input_path)
         
         if not papers:
-            logging.info('No new papers to store. All up to date')
+            self.logger.info('No new papers to store. All up to date')
             return
         # Store in Supabase and update paper_id_mapping
         paper_id_mapping = self.paper_storage.store_papers(
@@ -52,7 +52,7 @@ class TransformationPipeline:
         embeddings, paper_ids = self.embedding_generator.generate_embeddings(self.input_path, paper_id_mapping)
         pk = self.embedding_storage.store_embeddings(embeddings)
         self.embedding_storage.store_embedding_id(paper_ids,pk)
-        print(len(data_json), len(paper_ids))
+        self.logger.info(len(data_json), len(paper_ids))
         # Store object jsons and update their paths
         self.paper_storage.store_json(paper_ids,data_json)
         
@@ -76,5 +76,5 @@ class TransformationPipeline:
             'pagerank': pagerank,
             'status': 'Transformations and storage completed in Supabase, Milvus, and Dgraph'
         }
-        logger.info("Completed pipeline")
+        self.logger.info("Completed transformation pipeline")
         return results

@@ -1,10 +1,6 @@
 from supabase import create_client
 import os
-import logging
 from typing import Set, List
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class SupabaseClient:
     """Handles interactions with Supabase."""

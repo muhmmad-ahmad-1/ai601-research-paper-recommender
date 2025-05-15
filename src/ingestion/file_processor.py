@@ -2,19 +2,17 @@ import os
 import re
 import shutil
 import tarfile
-import logging
 from pathlib import Path
 from typing import Dict, List, Any
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class FileProcessor:
     """Handles file operations for downloading, extracting, and organizing LaTeX files."""
     
-    def __init__(self, output_dir: str = "papers_latex"):
+    def __init__(self, output_dir: str = "papers_latex", logger = None):
         self.output_dir = output_dir
         Path(output_dir).mkdir(parents=True, exist_ok=True)
+        self.logger = logger
     
     def extract_tar(self, arxiv_id: str) -> bool:
         """Extract a .tar.gz file for a paper.
@@ -32,10 +30,10 @@ class FileProcessor:
             try:
                 with tarfile.open(tar_path, "r:gz") as tar:
                     tar.extractall(path=extract_path)
-                logger.info(f"Extracted paper {arxiv_id} to {extract_path}")
+                self.logger.info(f"Extracted paper {arxiv_id} to {extract_path}")
                 return True
             except (tarfile.ReadError, tarfile.CompressionError, EOFError, FileNotFoundError) as e:
-                logger.error(f"Failed to extract paper {arxiv_id}: {e}")
+                self.logger.error(f"Failed to extract paper {arxiv_id}: {e}")
                 return False
         return True
     
@@ -75,7 +73,7 @@ class FileProcessor:
         try:
             shutil.rmtree(os.path.join(self.output_dir, f"temp_{arxiv_id}"))
             os.remove(os.path.join(self.output_dir, f"{arxiv_id}.tar.gz"))
-            logger.info(f"Deleted temp folder and tar file for {arxiv_id}")
+            self.logger.info(f"Deleted temp folder and tar file for {arxiv_id}")
         except FileNotFoundError:
             pass
     
@@ -131,7 +129,7 @@ class FileProcessor:
                     break
         
         if not main_tex_file:
-            logger.error(f"No main LaTeX file found for {arxiv_id}")
+            self.logger.error(f"No main LaTeX file found for {arxiv_id}")
             return
         
         tex_content_dict = self._load_tex_files(tex_files)
@@ -154,7 +152,7 @@ class FileProcessor:
             f.write(main_tex_content)
         
         file_info["dest"] = "combined_output.tex"
-        logger.info(f"Created combined tex file for {arxiv_id}")
+        self.logger.info(f"Created combined tex file for {arxiv_id}")
     
     def _clean_single_tex_file(self, arxiv_id: str, folder_path: str, file_info: Dict[str, Any]) -> None:
         """Clean a single LaTeX file."""
@@ -168,7 +166,7 @@ class FileProcessor:
         with open(fpath, 'w', encoding='utf-8') as f:
             f.write(cleaned_content)
         
-        logger.info(f"Cleaned single tex file for {arxiv_id}")
+        self.logger.info(f"Cleaned single tex file for {arxiv_id}")
     
     def _load_tex_files(self, tex_files: List[Path]) -> Dict[str, str]:
         """Load and clean LaTeX files."""

@@ -1,15 +1,14 @@
 import re
 import os
 import bibtexparser
-import logging
 from typing import Dict, List, Optional
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class PaperParser:
     """Parses LaTeX files to extract sections and citations."""
     
+    def __init__(self, logger=None):
+        self.logger = logger
+        
     def parse_tex(self, tex_file_path: str, paper_data: Dict) -> Optional[Dict]:
         """Parse LaTeX file to extract sections and citations.
         
@@ -24,7 +23,7 @@ class PaperParser:
             with open(tex_file_path, 'r', encoding='utf-8') as file:
                 tex_content = file.read()
         except UnicodeDecodeError as e:
-            logger.error(f"Error decoding file {tex_file_path}: {e}")
+            self.logger.error(f"Error decoding file {tex_file_path}: {e}")
             return None
         
         section_pattern = r'\\section\*?{(.*?)}(.*?)(?=\\section\*?{|\\Z)'
@@ -90,7 +89,7 @@ class PaperParser:
                                 'title': title
                             })
                 except Exception as e:
-                    logger.warning(f"Failed to parse .bib file {citation_file}: {e}")
+                    self.logger.warning(f"Failed to parse .bib file {citation_file}: {e}")
         
         if not citations:
             for citation_file in citation_files:
@@ -116,7 +115,7 @@ class PaperParser:
                                 "year": year
                             })
                     except Exception as e:
-                        logger.warning(f"Failed to parse .bbl file {citation_file}: {e}")
+                        self.logger.warning(f"Failed to parse .bbl file {citation_file}: {e}")
         
         if not citations:
             env_match = re.search(
@@ -134,5 +133,5 @@ class PaperParser:
                         title = title_match.group(1).strip()
                         citations.append({'key': key, 'title': title})
         
-        logger.info(f"Extracted {len(citations)} citations for {arxiv_id}")
+        self.logger.info(f"Extracted {len(citations)} citations for {arxiv_id}")
         return tex_content, citations

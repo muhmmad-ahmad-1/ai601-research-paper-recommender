@@ -1,18 +1,16 @@
 import json
-import logging
 from typing import List, Dict, Tuple
 from datetime import datetime
 from .db_utils import DBUtils, db_utils
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class PaperTransformer:
     """Transforms paper metadata for storage."""
-    def __init__(self):
+    def __init__(self, logger = None):
         self.db_utils = db_utils
         self.existing_author_ids = self._load_existing_author_ids()
         self.existing_paper_arxiv_ids = self._load_existing_paper_arxiv_ids()
+        self.logger = logger
 
     def _load_existing_author_ids(self) -> set:
         rows = self.db_utils.fetch_postgres(
@@ -159,6 +157,6 @@ class PaperTransformer:
                    for data in existing_authors.values()]
         keywords = [{'name': data['name']} for data in existing_keywords.values()]
         
-        logger.info(f"Transformed {len(papers)} papers, {len(authors)} authors, {len(keywords)} keywords, "
+        self.logger.info(f"Transformed {len(papers)} papers, {len(authors)} authors, {len(keywords)} keywords, "
                     f"{len(sections)} sections, {len(citations)} citations")
         return data_json,papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping

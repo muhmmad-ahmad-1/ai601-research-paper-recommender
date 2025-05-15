@@ -1,15 +1,12 @@
-import logging
 from typing import List, Dict
 from ..transformation.db_utils import DBUtils, db_utils
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class GraphStorage:
     """Stores citation graph in Dgraph using DQL."""
     
-    def __init__(self):
+    def __init__(self,logger=None):
         self.db_utils = db_utils
+        self.logger = logger
         self.db_utils.ensure_schema()
     
 
@@ -49,6 +46,6 @@ class GraphStorage:
                 }
                 self.db_utils.execute_dql_mutation(set_obj=edge_obj)
             else:
-                logger.warning(f"Missing UID for citation: {edge}")
+                self.logger.warning(f"Missing UID for citation: {edge}")
 
-        logger.info(f"Stored graph with {len(nodes)} nodes and {len(edges)} edges in Dgraph")
+        self.logger.info(f"Stored graph with {len(nodes)} nodes and {len(edges)} edges in Dgraph")
