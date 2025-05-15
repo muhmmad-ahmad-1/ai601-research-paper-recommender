@@ -1,74 +1,138 @@
 import streamlit as st
-import time # For simulating delay
+import sys
+import os
+from pathlib import Path
 
-# --- Chatbot Backend (Mocked) ---
-def get_mock_chatbot_response(user_query: str) -> str:
+# Add the src directory to the Python path
+src_path = str(Path(__file__).parent.parent.parent)
+if src_path not in sys.path:
+    sys.path.append(src_path)
+
+from recommendation.rag_recommender import RAGRecommender
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize RAG recommender
+@st.cache_resource
+def get_recommender():
+    """Initialize and cache the RAG recommender."""
+    try:
+        return RAGRecommender()
+    except Exception as e:
+        st.error(f"Failed to initialize recommender: {e}")
+        return None
+
+def format_paper_recommendation(rec: dict) -> str:
+    """Format a paper recommendation for display in chat."""
+    output = [
+        f"📄 **{rec['title']}**",
+        f"🔗 [Read Paper]({rec['url']})",
+        "",
+        "**Why this paper is relevant:**",
+        rec['generated_summary'],
+        ""
+    ]
+    
+    # Add section content if available
+    if rec.get('section_content'):
+        output.extend([
+            "**Relevant Section:**",
+            f"{rec['section_content'][:300]}...",
+            ""
+        ])
+    
+    return "\n".join(output)
+
+def get_chatbot_response(user_query: str, recommender: RAGRecommender) -> str:
     """
-    Simulates a backend call to a chatbot.
+    Get response from RAG recommender and format it for chat.
     Returns a markdown-formatted string.
     """
-    time.sleep(1.5) # API Call here
-
-    if "hello" in user_query.lower():
-        return """
-        Hi there! I am your AI Research Assistant. How can I help you today?
-        You can ask me about research trends, specific papers, or authors.
-        """
-    elif "transformer models" in user_query.lower():
-        return """
-        Transformer models have revolutionized NLP. Here are some key insights:
-
-        *   **Attention is All You Need (Vaswani et al., 2017):** The foundational paper.
-            *   *Reference:* [arXiv:1706.03762](https://arxiv.org/abs/1706.03762)
-        *   **BERT (Devlin et al., 2018):** Introduced bidirectional pre-training.
-            *   *Reference:* [arXiv:1810.04805](https://arxiv.org/abs/1810.04805)
-
-        **Recent Trends:**
-        *   Larger models (e.g., GPT-3, PaLM)
-        *   Efficiency improvements (e.g., sparse attention, distillation)
-        *   Multimodal applications
-        """
-    elif "latest papers on reinforcement learning" in user_query.lower():
-        return """
-        Here are a couple of (hypothetical) recent insights in Reinforcement Learning:
-
-        *   **"Self-Correcting Agents for Complex Environments" (AI Journal, 2024):** This paper discusses novel methods for agents to adapt to unforeseen changes.
-            *   *Key takeaway:* Improved robustness in dynamic settings.
-            *   *Reference:* (Hypothetical Paper ID: RL2024-001)
-        *   **"Multi-Agent Collaboration with Shared Intent Modeling" (NeurIPS, 2023):** Focuses on how multiple agents can better coordinate.
-            *   *Key takeaway:* Enhanced team performance in cooperative tasks.
-            *   *Reference:* (Hypothetical Paper ID: RL2023-105)
-
-        Please note: These are illustrative examples.
-        """
-    else:
+    try:
+        # Get recommendations
+        recommendations = recommender.get_recommendations(user_query, top_k=1)
+        
+        if not recommendations:
+            return """
+            I couldn't find any papers directly relevant to your query. 
+            Try rephrasing your question or being more specific about the research area you're interested in.
+            """
+        
+        # Format the response
+        response_parts = [
+            "Here are some relevant papers I found:",
+            ""
+        ]
+        
+        for i, rec in enumerate(recommendations, 1):
+            response_parts.extend([
+                f"**{i}. {rec['title']}**",
+                f"🔗 [Read Paper]({rec['url']})",
+                "",
+                "**Why this paper is relevant:**",
+                rec['generated_summary'],
+                ""
+            ])
+            
+            # Add section content if available
+            if rec.get('section_content'):
+                response_parts.extend([
+                    "**Relevant Section:**",
+                    f"{rec['section_content'][:300]}...",
+                    ""
+                ])
+            
+            response_parts.append("---")
+        
+        return "\n".join(response_parts)
+        
+    except Exception as e:
+        logger.error(f"Error getting recommendations: {e}")
         return f"""
-        I'm still under development, but I've noted your query: "{user_query}".
-
-        Here's a generic insight:
-        *   The field of AI is rapidly evolving. Staying updated with pre-print servers like arXiv is crucial.
-        *   *Reference:* [arXiv.org](https://arxiv.org/)
+        I encountered an error while searching for papers. Please try again.
+        If the problem persists, contact the system administrator.
+        Error details: {str(e)}
         """
 
 # --- Chatbot Page UI ---
-st.title("🤖 Conversational Research Assistant")
-st.markdown("Ask me anything about AI research!")
+st.title("🤖 AI Research Paper Assistant")
+st.markdown("""
+Ask me about AI research papers! I'll help you find relevant papers and explain why they might be useful for your research.
 
+For example, you can ask:
+- What are the latest advances in transformer architecture?
+- Show me papers about attention mechanisms in large language models
+- What are recent developments in prompt engineering?
+""")
+
+# Initialize session state for chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display chat history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("What is your research question?"):
+# Get recommender instance
+recommender = get_recommender()
+if recommender is None:
+    st.error("Failed to initialize the paper recommender. Please check your environment variables and try again.")
+    st.stop()
+
+# Chat input
+if prompt := st.chat_input("What would you like to know about AI research?"):
+    # Display user message
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
-
-    with st.spinner("Thinking..."):
-        response_markdown = get_mock_chatbot_response(prompt)
     
+    # Get and display assistant response
     with st.chat_message("assistant"):
-        st.markdown(response_markdown)
-    st.session_state.messages.append({"role": "assistant", "content": response_markdown})
+        with st.spinner("Searching for relevant papers..."):
+            response = get_chatbot_response(prompt, recommender)
+            st.markdown(response)
+    st.session_state.messages.append({"role": "assistant", "content": response})

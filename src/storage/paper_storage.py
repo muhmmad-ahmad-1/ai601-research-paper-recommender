@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Tuple
-from ..transformation.db_utils import DBUtils
+from transformation.db_utils import DBUtils
 import json
 
 logging.basicConfig(level=logging.INFO)

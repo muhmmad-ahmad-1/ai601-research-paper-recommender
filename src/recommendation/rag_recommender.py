@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Optional
-from src.transformation.db_utils import DBUtils
+from transformation.db_utils import DBUtils
 import json
 import google.generativeai as genai
 import os

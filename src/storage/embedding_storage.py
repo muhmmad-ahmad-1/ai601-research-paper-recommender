@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict
-from ..transformation.db_utils import DBUtils
+from transformation.db_utils import DBUtils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
