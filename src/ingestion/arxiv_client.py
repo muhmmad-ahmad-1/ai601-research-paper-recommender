@@ -1,17 +1,18 @@
 import requests
 import feedparser
 import arxiv
-import logging
 from typing import List
 from pathlib import Path
 import xml.etree.ElementTree
 import os
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
 
 class ArxivClient:
     """Handles interactions with the arXiv API."""
+
+    def __init__(self, logger=None):
+        self.logger = logger
     
     def fetch_latest_papers(self, num_papers: int = 3) -> List[str]:
         """Fetch latest papers from arXiv RSS feed.
@@ -32,7 +33,7 @@ class ArxivClient:
             arxiv_id = link.split('/')[-1]
             paper_ids.append(arxiv_id)
             
-        logger.info(f"Found {len(paper_ids)} paper IDs: {paper_ids}")
+        self.logger.info(f"Found {len(paper_ids)} paper IDs: {paper_ids}")
         return paper_ids
     
     def search_papers(self, query: str, max_results: int = 10, criterion: str = "relevance") -> List[str]:
@@ -61,7 +62,7 @@ class ArxivClient:
         results = list(client.results(search))
         
         paper_ids = [result.get_short_id().split('v')[0] for result in results]
-        logger.info(f"Found {len(paper_ids)} papers matching query: {paper_ids}")
+        self.logger.info(f"Found {len(paper_ids)} papers matching query: {paper_ids}")
         return paper_ids
     
     def download_paper(self, arxiv_id: str, output_dir: str) -> bool:
@@ -82,10 +83,10 @@ class ArxivClient:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, "wb") as f:
                 f.write(response.content)
-            logger.info(f"Downloaded LaTeX source: {file_path}")
+            self.logger.info(f"Downloaded LaTeX source: {file_path}")
             return True
         else:
-            logger.error(f"Failed to download {arxiv_id}, status code: {response.status_code}")
+            self.logger.error(f"Failed to download {arxiv_id}, status code: {response.status_code}")
             return False
     
     def search_by_title(self, title: str) -> str:
@@ -109,5 +110,5 @@ class ArxivClient:
                 if id_elem is not None:
                     return id_elem.text.strip().split('/')[-1]
         except Exception as e:
-            logger.error(f"arXiv search error: {e}")
+            self.logger.error(f"arXiv search error: {e}")
         return None

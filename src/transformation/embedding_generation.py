@@ -1,18 +1,16 @@
 import json
-import logging
 from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import uuid 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class EmbeddingGenerator:
     """Generates semantic embeddings for papers."""
     
-    def __init__(self, model_name: str = "thenlper/gte-large"):
+    def __init__(self, model_name: str = "thenlper/gte-large", logger = None):
         self.model = SentenceTransformer(model_name)
+        self.logger = logger
     
     def generate_embeddings(self, input_path: str, paper_id_mapping: Dict) -> List[Dict]:
         """Generate embeddings for papers using UUID paper_id.
@@ -42,7 +40,7 @@ class EmbeddingGenerator:
                 })
                 paper_ids.append(paper_id_mapping[paper['paper_id']])
         
-        logger.info(f"Generated {len(entities)} paper embeddings")
+        self.logger.info(f"Generated {len(entities)} paper embeddings")
         return entities, paper_ids
     
     def _combine_text(self, paper: Dict) -> str:

@@ -1,14 +1,12 @@
-import logging
 from typing import List, Dict
 from ..transformation.db_utils import DBUtils, db_utils
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class EmbeddingStorage:
     """Stores embeddings in Milvus."""
     
-    def __init__(self, collection_name: str = "paper_embeddings"):
+    def __init__(self, collection_name: str = "paper_embeddings", logger=None):
+        self.logger = logger
         self.db_utils = db_utils
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
         self.supabase = self.db_utils.supabase_client
@@ -20,7 +18,7 @@ class EmbeddingStorage:
             embeddings: Embedding records
         """
         result = self.collection.insert(embeddings)
-        logger.info(f"Stored {len(embeddings)} embeddings in Milvus collection {self.collection.name}")
+        self.logger.info(f"Stored {len(embeddings)} embeddings in Milvus collection {self.collection.name}")
         return result.primary_keys
 
     def store_embedding_id(self, paper_ids: List[str], embedding_ids: List[str]) -> None:
@@ -43,7 +41,7 @@ class EmbeddingStorage:
                     pk="paper_id"
                 )
             except Exception as e:
-                logger.error(f"Failed to update embedding_id for paper_id={pid}: {e}")
+                self.logger.error(f"Failed to update embedding_id for paper_id={pid}: {e}")
     
     def store_section_embedding_id(self, section_ids: List[str], paper_ids: List[str], embedding_ids: List[str]) -> None:
         """
@@ -66,5 +64,5 @@ class EmbeddingStorage:
                     pk=["section_id", "paper_id"]  # assuming your update_postgres handles composite keys
                 )
             except Exception as e:
-                logger.error(f"Failed to update embedding_id for section_id={sec_id}, paper_id={pid}: {e}")
+                self.logger.error(f"Failed to update embedding_id for section_id={sec_id}, paper_id={pid}: {e}")
 
