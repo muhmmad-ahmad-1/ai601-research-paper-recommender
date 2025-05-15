@@ -142,7 +142,7 @@ class RAGRecommender:
             logger.error(f"Error retrieving section content for section {section_id}: {e}")
             return None
     
-    def generate_summary(self, recommendations: List[Dict]) -> List[Dict]:
+    def generate_summary(self, query: str, recommendations: List[Dict]) -> List[Dict]:
         """
         Generate summaries for recommended papers using Gemini.
         
@@ -166,21 +166,25 @@ class RAGRecommender:
             content = "\n".join(content_parts)
             
             # Prepare prompt for Gemini
-            prompt = f"""Given the following research paper information, provide a concise summary that explains why this paper is relevant to the user's query:
+            prompt = f"""Given the following research paper information and the user's query, provide a concise summary that explains why this paper is relevant to the user's query:
 
 {content}
+
+User Query: {query}
 
 Please provide:
 1. A brief summary of why this paper is relevant
 2. Key insights from the paper
 3. The paper's contribution to the field
 
-Keep the response concise and focused on relevance to the query."""
+Keep the response concise and focused on relevance to the query. If the paper is not relevant to the query tell the user that NO RELEVANT PAPERS WERE FOUND."""
 
             try:
                 # Call Gemini
                 response = self.gemini_model.generate_content(prompt)
-                
+                if 'NO RELEVANT PAPERS WERE FOUND' in response.text:
+                    recommendations.remove(rec)
+                    continue
                 if response.text:
                     rec['generated_summary'] = response.text
                 else:
@@ -223,8 +227,8 @@ Keep the response concise and focused on relevance to the query."""
         """
         # Search for relevant papers
         recommendations = self.search_papers(query, top_k)
-        
+
         # Generate summaries
-        recommendations_with_summaries = self.generate_summary(recommendations)
-        
+        recommendations_with_summaries = self.generate_summary(query, recommendations)
+
         return recommendations_with_summaries 
