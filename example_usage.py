@@ -1,11 +1,30 @@
 import json
 from typing import Dict
 import logging
+import os
+from dotenv import load_dotenv
 
 from src.recommendation.rag_recommender import RAGRecommender
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def check_environment():
+    """Check if required environment variables are set."""
+    required_vars = [
+        "GOOGLE_API_KEY",
+        "SUPABASE_URL",
+        "SUPABASE_KEY",
+        "MILVUS_URI",
+        "MILVUS_TOKEN"
+    ]
+    
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        raise EnvironmentError(
+            f"Missing required environment variables: {', '.join(missing_vars)}\n"
+            "Please set these in your .env file or environment."
+        )
 
 def format_recommendation(rec: Dict) -> str:
     """Format a single recommendation for display."""
@@ -20,7 +39,7 @@ def format_recommendation(rec: Dict) -> str:
         "Paper Summary (from database):",
         f"{rec['summary'] or 'No summary available'}",
         "",
-        "Generated Summary:",
+        "Generated Summary (Gemini):",
         f"{rec['generated_summary']}",
         ""
     ]
@@ -76,13 +95,18 @@ def save_recommendations(recommendations: list, filename: str = 'recommendations
         logger.info(f"Saved recommendations to {filename}")
 
 def main():
+    # Load environment variables and check required ones
+    load_dotenv()
+    check_environment()
+    
     # Initialize the recommender
     recommender = RAGRecommender()
     
     # Example queries to demonstrate both full paper and section chunk retrieval
     queries = [
         "What is YOLO and how does it work?",
-        "How do speed estimation models work? What are the latest advances?",
+        "What are the recent advances in tiny object detection?",
+        "What are the recent advances on vehicle speed estimation?"
     ]
     
     for query in queries:

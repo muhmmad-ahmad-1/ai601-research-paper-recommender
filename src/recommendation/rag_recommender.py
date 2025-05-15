@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Optional
 from src.transformation.db_utils import DBUtils
 import json
-from groq import Groq
+import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -11,15 +11,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RAGRecommender:
-    """RAG-based paper recommendation system using Zilliz, Supabase, and GROK LLM."""
+    """RAG-based paper recommendation system using Zilliz, Supabase, and Gemini."""
     
     def __init__(self, collection_name: str = "paper_embeddings"):
         load_dotenv()
         self.db_utils = DBUtils()
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
         self.supabase = self.db_utils.supabase_client
-        self.groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         self.embedding_model = SentenceTransformer("thenlper/gte-large")
+        
+        # Initialize Gemini
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         
     def search_papers(self, query: str, top_k: int = 5) -> List[Dict]:
         """
@@ -141,7 +144,7 @@ class RAGRecommender:
     
     def generate_summary(self, recommendations: List[Dict]) -> List[Dict]:
         """
-        Generate summaries for recommended papers using GROK LLM.
+        Generate summaries for recommended papers using Gemini.
         
         Args:
             recommendations: List of paper recommendations with chunks and metadata
@@ -162,7 +165,7 @@ class RAGRecommender:
             
             content = "\n".join(content_parts)
             
-            # Prepare prompt for GROK
+            # Prepare prompt for Gemini
             prompt = f"""Given the following research paper information, provide a concise summary that explains why this paper is relevant to the user's query:
 
 {content}
@@ -175,18 +178,13 @@ Please provide:
 Keep the response concise and focused on relevance to the query."""
 
             try:
-                # Call GROK LLM
-                completion = self.groq_client.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful research paper assistant that provides concise and relevant summaries."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=500
-                )
+                # Call Gemini
+                response = self.gemini_model.generate_content(prompt)
                 
-                rec['generated_summary'] = completion.choices[0].message.content
+                if response.text:
+                    rec['generated_summary'] = response.text
+                else:
+                    rec['generated_summary'] = "Summary generation failed. Please refer to the paper directly."
                 
             except Exception as e:
                 logger.error(f"Error generating summary for paper {rec['paper_id']}: {e}")
