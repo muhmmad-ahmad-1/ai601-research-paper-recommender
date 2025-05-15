@@ -1,12 +1,12 @@
 import logging
 from typing import Dict
-from transformation import (
+from src.transformation import (
     PaperTransformer,
     EmbeddingGenerator,
     CitationGraph,
     ContentChunker
 )
-from storage import (
+from src.storage import (
     PaperStorage,
     EmbeddingStorage,
     GraphStorage,

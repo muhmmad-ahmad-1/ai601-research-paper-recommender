@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
-from processing_workflow import ProcessingWorkflow  # Adjust path if needed
+from .ingest_and_store import ProcessingWorkflow  # Adjust path if needed
 
 # Define the callable for Airflow to execute
 def run_workflow():

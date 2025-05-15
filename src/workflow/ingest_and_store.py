@@ -1,5 +1,5 @@
-from transformation import TransformationPipeline
-from ingestion import IngestionPipeline
+from src.transformation import TransformationPipeline
+from src.ingestion import IngestionPipeline
 import logging
 from typing import List, Optional
 
@@ -39,6 +39,7 @@ class ProcessingWorkflow:
 
         except Exception as e:
             logger.error(f"Processing failed: {e}", exc_info=True)
+            return
 
     def run_multiple(self, queries: List[str], num_papers: int = 3, max_extensions: int = 1):
         """
