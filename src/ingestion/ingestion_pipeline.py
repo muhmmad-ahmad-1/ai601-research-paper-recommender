@@ -290,7 +290,7 @@ class IngestionPipeline:
         #         except Exception as e:
         #             logger.error(f"Failed to delete {dir_path}: {e}")
     
-    def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3) -> List[Dict]:
+    def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3,max_extentions: int = 5) -> List[Dict]:
         """Run the complete ingestion pipeline.
         
         Args:
@@ -306,8 +306,8 @@ class IngestionPipeline:
         self.fetch_metadata()
         self.process_files()
         self.parse_papers()
-        self.process_cited_papers()
-        self.process_citing_papers()
+        self.process_cited_papers(max_extentions)
+        self.process_citing_papers(max_extentions)
         self.enrich_paper_metadata()
         self.papers.append({"citation_links": self.citation_link})
         self.save_papers()

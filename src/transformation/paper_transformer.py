@@ -84,20 +84,8 @@ class PaperTransformer:
                             'affiliation': author.get('affiliation', None),
                             'h_index': author_h_index,
                             'citation_count': citation_count,
-                            'influential_citation_count': influential_citation_count
-                        }
-                    paper_authors.append({
-                        'input_paper_id': input_paper_id,
-                        'author_key': author_key,
-                        'author_order': idx + 1
-                    })
-                    if author_key not in existing_authors:
-                        existing_authors[author_key] = {
-                            'name': author_name,
-                            'affiliation': author.get('affiliation', None),
-                            'h_index': author.get('hIndex', None),
-                            'citation_count': author.get('citationCount', None),
-                            'influential_citation_count': author.get('influentialCitationCount', None)
+                            'influential_citation_count': influential_citation_count,
+                            'semanticid': author.get('authorId',None)
                         }
                     paper_authors.append({
                         'input_paper_id': input_paper_id,
@@ -123,7 +111,8 @@ class PaperTransformer:
                     sections.append({
                         'input_paper_id': input_paper_id,
                         'section_type': section_name,
-                        'object_path': None
+                        'object_path': None,
+                        'chunk_id' : str(1)
                     })
                 
                 # Citations
@@ -137,7 +126,7 @@ class PaperTransformer:
         
         # Convert author/keyword dicts to lists
         authors = [{'name': data['name'], 'affiliation': data['affiliation'], 
-                    'h_index': data['h_index'], 'citation_count': data['citation_count'], 'influential_citation_count':data['influential_citation_count']}
+                    'h_index': data['h_index'], 'citation_count': data['citation_count'], 'influential_citation_count':data['influential_citation_count'],'semanticid':data['semanticid']}
                    for data in existing_authors.values()]
         keywords = [{'name': data['name']} for data in existing_keywords.values()]
         

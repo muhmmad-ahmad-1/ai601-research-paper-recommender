@@ -66,8 +66,9 @@ class TransformationPipeline:
         
         # Chunk sections and store embeddings
         chunks, section_records = self.content_chunker.chunk_content(self.input_path, paper_id_mapping)
+        chunk_ids = [chunk['chunk_id'] for chunk in chunks]
         pk = self.chunk_storage.store_chunks(chunks)
-        self.chunk_storage.store_section_embedding_ids(section_records, pk)
+        self.chunk_storage.store_section_embedding_ids(section_records, pk,chunk_ids)
         results = {
             'pagerank': pagerank,
             'status': 'Transformations and storage completed in Supabase, Milvus, and Dgraph'

@@ -23,7 +23,7 @@ class ChunkStorage:
         primary_keys = insert_result.primary_keys
         return primary_keys
     
-    def store_section_embedding_ids(self, section_records: List[Dict[str, str]], embedding_ids: List[str]) -> None:
+    def store_section_embedding_ids(self, section_records: List[Dict[str, str]], embedding_ids: List[str], chunk_ids: List[str]) -> None:
         """
         Updates the sections table with corresponding embedding IDs.
 
@@ -31,12 +31,31 @@ class ChunkStorage:
             section_records: List of dicts with 'paper_id' and 'section_id' as keys.
             embedding_ids: List of Milvus primary keys (embedding IDs) to be stored.
         """
-        assert len(section_records) == len(embedding_ids), "Mismatch in length of records and embedding IDs"
+        assert len(section_records) == len(embedding_ids) == len(chunk_ids), "Mismatch in length of records and embedding IDs"
 
-        for record, eid in zip(section_records, embedding_ids):
-            self.db_utils.update_postgres(
-                table_name="sections",
-                row={"paper_id": record["paper_id"], "section_id": record["section_id"]},
-                data={"embedding_id": eid},
-                pk=["paper_id", "section_id"]
-            )
+        record_s = {}
+        for record, eid,chunk_id in zip(section_records, embedding_ids,chunk_ids):
+            if chunk_id == str(1):
+                record_s = self.db_utils.update_postgres(
+                    table_name="sections",
+                    row={"paper_id": record["paper_id"], "section_id": record["section_id"]},
+                    data={"embedding_id": eid},
+                    pk=["paper_id", "section_id"]
+                )
+            else:
+                if record_s.get('paper_id',) == record["paper_id"] and record_s.get('section_id',) == record["section_id"]:
+                    pass
+                else:
+                    record_s = self.db_utils.fetch_postgres('sections',record)
+                    record_s = record_s[0] if isinstance(record_s,list) else record_s
+                self.db_utils.insert_postgres(
+                    table_name='sections',
+                    data={
+                        'paper_id':record["paper_id"],
+                        'section_id': record["section_id"],
+                        'section_type': record_s['section_type'],
+                        'object_path': record_s['object_path'],
+                        'chunk_id': chunk_id,
+                        'embedding_id': eid
+                    }
+                )

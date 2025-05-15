@@ -122,6 +122,36 @@ class DBUtils:
                 pk_str = f"{pk}={row[pk]}"
             logger.error(f"Failed to update {table_name} where {pk_str}: {e}")
             raise
+    
+    def fetch_postgres(self, table_name: str, filters: Dict[str, Any], select: Union[List[str], str] = "*") -> List[Dict[str, Any]]:
+        """
+        Fetch rows from a Supabase table with optional filters.
+
+        Args:
+            table_name: Name of the table to query.
+            filters: A dictionary of field-value pairs to filter by (e.g., {"paper_id": "abc123"}).
+            select: List of columns to select (default is '*').
+
+        Returns:
+            A list of matching rows as dictionaries.
+        """
+        try:
+            query = self.supabase_client.table(table_name).select(select)
+
+            for key, value in filters.items():
+                query = query.eq(key, value)
+
+            response = query.execute()
+
+            if not response.data:
+                return []
+
+            return response.data
+
+        except Exception as e:
+            logger.error(f"Failed to fetch from {table_name} with filters {filters}: {e}")
+            raise
+
 
 
 
