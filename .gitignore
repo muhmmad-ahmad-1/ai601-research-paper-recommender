@@ -180,3 +180,5 @@ cython_debug/
 *.bbl
 temp_db.py
 ingestion_pipeline.py
+*.bib
+*/papers_latex/*

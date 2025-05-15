@@ -35,7 +35,7 @@ class ArxivClient:
         logger.info(f"Found {len(paper_ids)} paper IDs: {paper_ids}")
         return paper_ids
     
-    def search_papers(self, query: str, max_results: int = 10) -> List[str]:
+    def search_papers(self, query: str, max_results: int = 10, criterion: str = "relevance") -> List[str]:
         """Search papers on arXiv based on query.
         
         Args:
@@ -45,12 +45,18 @@ class ArxivClient:
         Returns:
             List[str]: List of arXiv IDs
         """
-        search = arxiv.Search(
-            query=query,
-            max_results=max_results,
-            sort_by=arxiv.SortCriterion.Relevance
-        )
-        
+        if criterion == 'relevance':
+            search = arxiv.Search(
+                query=query,
+                max_results=max_results,
+                sort_by=arxiv.SortCriterion.Relevance
+            )
+        else:
+            search = arxiv.Search(
+                query=query,
+                max_results=max_results,
+                sort_by=arxiv.SortCriterion.LastUpdatedDate
+            )
         client = arxiv.Client()
         results = list(client.results(search))
         

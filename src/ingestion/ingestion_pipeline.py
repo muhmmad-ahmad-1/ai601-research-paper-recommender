@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class IngestionPipeline:
     """Orchestrates the paper ingestion pipeline."""
     
-    def __init__(self, output_dir: str = "papers_latex"):
+    def __init__(self, output_dir: str = "papers_latex",criterion:str ='relevance'):
         """Initialize the ingestion pipeline.
         
         Args:
@@ -35,7 +35,7 @@ class IngestionPipeline:
         self.file_processor = FileProcessor(output_dir)
         self.paper_parser = PaperParser()
         self.llm_processor = LLMProcessor(os.getenv("OPENROUTER_API_KEY"))
-    
+        self.criterion = criterion
     def fetch_papers(self, query: Optional[str] = None, num_papers: int = 3) -> None:
         """Fetch paper IDs from arXiv.
         
@@ -44,9 +44,19 @@ class IngestionPipeline:
             num_papers (int): Number of papers to fetch
         """
         if query:
-            self.paper_ids = self.arxiv_client.search_papers(query, num_papers)
+            self.paper_ids = self.arxiv_client.search_papers(query, num_papers,criterion=self.criterion)
         else:
             self.paper_ids = self.arxiv_client.fetch_latest_papers(num_papers)
+    
+    def deduplicate_papers(self) -> None:
+        """Remove papers already in Supabase from the paper ID list."""
+        existing_ids = self.supabase_client.get_existing_arxiv_ids()
+        original_count = len(self.paper_ids)
+        
+        self.paper_ids = [pid for pid in self.paper_ids if pid.split("v")[0] not in existing_ids]
+        
+        logger.info(f"Deduplicated papers: {original_count - len(self.paper_ids)} already exist in Supabase.")
+
     
     def download_and_extract(self) -> None:
         """Download and extract papers."""
@@ -148,7 +158,10 @@ class IngestionPipeline:
         for paper in self.papers:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_cited_papers(arxiv_id, paper['title'])
-            
+            self.paper_ids = [c.get('arxivId') for c in citations]
+            self.deduplicate_papers()
+            citations = [c for c in citations if c.get('arxivId') in self.paper_ids ]
+            self.paper_ids = original_paper_ids.copy()
             for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
@@ -193,7 +206,10 @@ class IngestionPipeline:
         for paper in self.papers:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_citing_papers(arxiv_id, paper['title'])
-            
+            self.paper_ids = [c.get('arxivId') for c in citations]
+            self.deduplicate_papers()
+            citations = [c for c in citations if c.get('arxivId') in self.paper_ids ]
+            self.paper_ids = original_paper_ids.copy()
             for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
@@ -290,7 +306,7 @@ class IngestionPipeline:
         #         except Exception as e:
         #             logger.error(f"Failed to delete {dir_path}: {e}")
     
-    def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3) -> List[Dict]:
+    def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3,max_extentions: int = 5) -> List[Dict]:
         """Run the complete ingestion pipeline.
         
         Args:
@@ -301,13 +317,14 @@ class IngestionPipeline:
             List[Dict]: Processed papers
         """
         self.fetch_papers(query, num_papers)
+        self.deduplicate_papers()
         self.download_and_extract()
         self.organize_files()
         self.fetch_metadata()
         self.process_files()
         self.parse_papers()
-        self.process_cited_papers()
-        self.process_citing_papers()
+        self.process_cited_papers(max_extentions)
+        self.process_citing_papers(max_extentions)
         self.enrich_paper_metadata()
         self.papers.append({"citation_links": self.citation_link})
         self.save_papers()

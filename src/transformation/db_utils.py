@@ -6,9 +6,11 @@ from supabase import create_client
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import pydgraph
 from typing import Any, Dict, List, Union
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class DBUtils:
     """Handles connections to Supabase, Milvus, and Dgraph."""
@@ -122,8 +124,35 @@ class DBUtils:
                 pk_str = f"{pk}={row[pk]}"
             logger.error(f"Failed to update {table_name} where {pk_str}: {e}")
             raise
+    
+    def fetch_postgres(self, table_name: str, filters: Dict[str, Any], select: Union[List[str], str] = "*") -> List[Dict[str, Any]]:
+        """
+        Fetch rows from a Supabase table with optional filters.
 
+        Args:
+            table_name: Name of the table to query.
+            filters: A dictionary of field-value pairs to filter by (e.g., {"paper_id": "abc123"}).
+            select: List of columns to select (default is '*').
 
+        Returns:
+            A list of matching rows as dictionaries.
+        """
+        try:
+            query = self.supabase_client.table(table_name).select(select)
+
+            for key, value in filters.items():
+                query = query.eq(key, value)
+
+            response = query.execute()
+
+            if not response.data:
+                return []
+
+            return response.data
+
+        except Exception as e:
+            logger.error(f"Failed to fetch from {table_name} with filters {filters}: {e}")
+            raise
 
     
     def get_section_id(self,paper_id:str,section_name:str) -> str:
@@ -206,7 +235,11 @@ class DBUtils:
             txn.discard()
 
             # Extract existing predicate names
-            existing_preds = {entry['predicate'] for entry in res.json.get('schema', [])}
+            raw_json = res.json  # this is bytes
+            parsed_json = json.loads(raw_json.decode("utf-8"))
+
+            # Extract existing predicate names
+            existing_preds = {entry['predicate'] for entry in parsed_json.get('schema', [])}
             required_preds = {"paper_id", "title", "year", "authors", "cites"}
 
             if not required_preds.issubset(existing_preds):
@@ -220,3 +253,4 @@ class DBUtils:
 
 
 
+db_utils = DBUtils()

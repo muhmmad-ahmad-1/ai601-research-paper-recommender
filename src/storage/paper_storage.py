@@ -32,15 +32,27 @@ class PaperStorage:
         """
         # Insert authors and retrieve author_id
         author_keys = {a['name'].lower(): None for a in authors}
+        existing_info = self.db_utils.fetch_postgres('authors',{})
         author_ids = self.db_utils.insert_postgres('authors', authors, returning='author_id')
         for key, author_id in zip(author_keys.keys(), author_ids):
             author_keys[key] = author_id
+        author_keys.update({eo['name'].lower():eo['author_id'] for eo in existing_info})
         
         # Insert keywords and retrieve keyword_id
         keyword_keys = {k['name'].lower(): None for k in keywords}
-        keyword_ids = self.db_utils.insert_postgres('keywords', keywords, returning='keyword_id')
+        # Build deduplicated keyword list from the keys
+        deduped_keywords = [{'name': name} for name in keyword_keys.keys()]
+        # Ensure deduplication from existing keys in supabase as well
+        existing_keywords = self.db_utils.fetch_postgres('keywords',filters={})
+        existing_keyword_names = {row["name"] for row in existing_keywords if row.get("name")}
+        deduped_keywords = [{'name':name} for name in keyword_keys.keys() if name not in existing_keyword_names]
+        keyword_ids = self.db_utils.insert_postgres('keywords', deduped_keywords, returning='keyword_id')
         for key, keyword_id in zip(keyword_keys.keys(), keyword_ids):
             keyword_keys[key] = keyword_id
+        keyword_keys.update({
+            row["name"].lower(): row["keyword_id"]
+            for row in existing_keywords
+        })
         
         # Insert papers and retrieve paper_id
         papers_for_insert = [{k: v for k, v in p.items() if k != 'input_paper_id'} for p in papers]
@@ -58,8 +70,19 @@ class PaperStorage:
             for pa in paper_authors
             if pa['input_paper_id'] in paper_id_mapping and pa['author_key'] in author_keys
         ]
-        self.db_utils.insert_postgres('paper_authors', paper_authors_updated)
-        
+
+        # ✅ Deduplicate by (paper_id, author_id)
+        seen = set()
+        deduped_paper_authors = []
+        for pa in paper_authors_updated:
+            key = (pa['paper_id'], pa['author_id'])
+            if key not in seen:
+                seen.add(key)
+                deduped_paper_authors.append(pa)
+
+        # Now insert only the unique pairs
+        self.db_utils.insert_postgres('paper_authors', deduped_paper_authors)
+        print(keyword_keys)
         # Update paper_keywords with UUIDs
         paper_keywords_updated = [
             {

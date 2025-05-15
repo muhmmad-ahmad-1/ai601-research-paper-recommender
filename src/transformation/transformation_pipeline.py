@@ -39,7 +39,10 @@ class TransformationPipeline:
         # Transform paper metadata
         data_json, papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping = \
             self.paper_transformer.transform_papers(self.input_path)
-
+        
+        if not papers:
+            logging.info('No new papers to store. All up to date')
+            return
         # Store in Supabase and update paper_id_mapping
         paper_id_mapping = self.paper_storage.store_papers(
             papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping
@@ -66,8 +69,9 @@ class TransformationPipeline:
         
         # Chunk sections and store embeddings
         chunks, section_records = self.content_chunker.chunk_content(self.input_path, paper_id_mapping)
+        chunk_ids = [chunk['chunk_id'] for chunk in chunks]
         pk = self.chunk_storage.store_chunks(chunks)
-        self.chunk_storage.store_section_embedding_ids(section_records, pk)
+        self.chunk_storage.store_section_embedding_ids(section_records, pk,chunk_ids)
         results = {
             'pagerank': pagerank,
             'status': 'Transformations and storage completed in Supabase, Milvus, and Dgraph'
