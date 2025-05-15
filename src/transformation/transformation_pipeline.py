@@ -39,7 +39,10 @@ class TransformationPipeline:
         # Transform paper metadata
         data_json, papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping = \
             self.paper_transformer.transform_papers(self.input_path)
-
+        
+        if not papers:
+            logging.info('No new papers to store. All up to date')
+            return
         # Store in Supabase and update paper_id_mapping
         paper_id_mapping = self.paper_storage.store_papers(
             papers, authors, paper_authors, keywords, paper_keywords, sections, citations, paper_id_mapping

@@ -5,7 +5,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import uuid
-from .db_utils import DBUtils
+from .db_utils import DBUtils, db_utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class ContentChunker:
     def __init__(self, model_name: str = "thenlper/gte-large", chunk_size: int = 10000,chunk_overlap: int = 200):
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self.model = SentenceTransformer(model_name)
-        self.db = DBUtils()
+        self.db = db_utils
     
     def chunk_content(self, input_path: str, paper_id_mapping: Dict) -> Tuple[List[Dict], List[Dict[str, str]]]:
         """

@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict
-from ..transformation.db_utils import DBUtils
+from ..transformation.db_utils import DBUtils, db_utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ class EmbeddingStorage:
     """Stores embeddings in Milvus."""
     
     def __init__(self, collection_name: str = "paper_embeddings"):
-        self.db_utils = DBUtils()
+        self.db_utils = db_utils
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
         self.supabase = self.db_utils.supabase_client
     

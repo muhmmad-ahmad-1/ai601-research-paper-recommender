@@ -2,12 +2,33 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from datetime import datetime
+from .db_utils import DBUtils, db_utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PaperTransformer:
     """Transforms paper metadata for storage."""
+    def __init__(self):
+        self.db_utils = db_utils
+        self.existing_author_ids = self._load_existing_author_ids()
+        self.existing_paper_arxiv_ids = self._load_existing_paper_arxiv_ids()
+
+    def _load_existing_author_ids(self) -> set:
+        rows = self.db_utils.fetch_postgres(
+            table_name="authors",
+            filters={},
+            select=["semanticid"]
+        )
+        return {row["semanticid"] for row in rows if row.get("semanticid")}
+
+    def _load_existing_paper_arxiv_ids(self) -> set:
+        rows = self.db_utils.fetch_postgres(
+            table_name="papers",
+            filters={},
+            select=["arxiv_id"]
+        )
+        return {row["arxiv_id"] for row in rows if row.get("arxiv_id")}
     
     def transform_papers(self, input_path: str) -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict], List[Dict], List[Dict], Dict]:
         """Process papers, authors, keywords, sections, and citations.
@@ -48,9 +69,11 @@ class PaperTransformer:
                 if doi == "N/A":
                     doi = None
                 arxiv_id = data.get('paper_id',None)
+                arxiv_id = arxiv_id.split('v')[0]
                 if arxiv_id == "N/A":
                     arxiv_id = None
-
+                if not arxiv_id or arxiv_id in self.existing_paper_arxiv_ids:
+                    continue
                 papers.append({
                     'input_paper_id': input_paper_id,  # Temporary for mapping
                     'title': data.get('title', ''),
@@ -66,9 +89,12 @@ class PaperTransformer:
                     'domain': data.get('domain',None),
                     'summary': data.get('summary',None),
                 })
+                self.existing_paper_arxiv_ids.add(arxiv_id)
                 
                 # Authors
                 for idx, author in enumerate(data.get('authors', [])):
+                    authorId = author.get('authorId',None)
+                    
                     author_name = author.get('name', '')
                     if not author_name:
                         continue
@@ -78,7 +104,9 @@ class PaperTransformer:
                     influential_citation_count = author.get('influentialCitationCount',None) if author.get('influentialCitationCount',None) != 'N/A' else None
 
                     
-                    if author_key not in existing_authors:
+                    if not authorId or authorId in self.existing_author_ids:
+                        pass
+                    else:
                         existing_authors[author_key] = {
                             'name': author_name,
                             'affiliation': author.get('affiliation', None),
@@ -92,6 +120,7 @@ class PaperTransformer:
                         'author_key': author_key,
                         'author_order': idx + 1
                     })
+                    self.existing_author_ids.add(authorId)
                 
                 # Keywords
                 for kw in data.get('keywords', []):

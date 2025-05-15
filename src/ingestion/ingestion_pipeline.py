@@ -48,6 +48,16 @@ class IngestionPipeline:
         else:
             self.paper_ids = self.arxiv_client.fetch_latest_papers(num_papers)
     
+    def deduplicate_papers(self) -> None:
+        """Remove papers already in Supabase from the paper ID list."""
+        existing_ids = self.supabase_client.get_existing_arxiv_ids()
+        original_count = len(self.paper_ids)
+        
+        self.paper_ids = [pid for pid in self.paper_ids if pid.split("v")[0] not in existing_ids]
+        
+        logger.info(f"Deduplicated papers: {original_count - len(self.paper_ids)} already exist in Supabase.")
+
+    
     def download_and_extract(self) -> None:
         """Download and extract papers."""
         valid_ids = []
@@ -148,7 +158,10 @@ class IngestionPipeline:
         for paper in self.papers:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_cited_papers(arxiv_id, paper['title'])
-            
+            self.paper_ids = [c.get('arxivId') for c in citations]
+            self.deduplicate_papers()
+            citations = [c for c in citations if c.get('arxivId') in self.paper_ids ]
+            self.paper_ids = original_paper_ids.copy()
             for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
@@ -193,7 +206,10 @@ class IngestionPipeline:
         for paper in self.papers:
             arxiv_id = paper['paper_id']
             citations = self.semantic_scholar_client.get_citing_papers(arxiv_id, paper['title'])
-            
+            self.paper_ids = [c.get('arxivId') for c in citations]
+            self.deduplicate_papers()
+            citations = [c for c in citations if c.get('arxivId') in self.paper_ids ]
+            self.paper_ids = original_paper_ids.copy()
             for citation in citations[:max_extensions]:
                 cited_arxiv_id = citation.get('arxivId')
                 if cited_arxiv_id and cited_arxiv_id not in self.paper_ids:
@@ -301,6 +317,7 @@ class IngestionPipeline:
             List[Dict]: Processed papers
         """
         self.fetch_papers(query, num_papers)
+        self.deduplicate_papers()
         self.download_and_extract()
         self.organize_files()
         self.fetch_metadata()

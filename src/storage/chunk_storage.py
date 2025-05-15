@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict
-from ..transformation.db_utils import DBUtils
+from ..transformation.db_utils import DBUtils, db_utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ class ChunkStorage:
     """Stores section/chunk embeddings in Milvus."""
     
     def __init__(self, collection_name: str = "paper_embeddings"):
-        self.db_utils = DBUtils()
+        self.db_utils = db_utils
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
     
     def store_chunks(self, chunks: List[Dict]) -> None:
@@ -30,32 +30,44 @@ class ChunkStorage:
         Args:
             section_records: List of dicts with 'paper_id' and 'section_id' as keys.
             embedding_ids: List of Milvus primary keys (embedding IDs) to be stored.
+            chunk_ids: List of chunk_id strings
         """
         assert len(section_records) == len(embedding_ids) == len(chunk_ids), "Mismatch in length of records and embedding IDs"
 
-        record_s = {}
-        for record, eid,chunk_id in zip(section_records, embedding_ids,chunk_ids):
-            if chunk_id == str(1):
-                record_s = self.db_utils.update_postgres(
+        cached = {}
+
+        for record, eid, chunk_id in zip(section_records, embedding_ids, chunk_ids):
+            paper_id = record["paper_id"]
+            section_id = record["section_id"]
+
+            key = (paper_id, section_id)
+
+            if key not in cached:
+                res = self.db_utils.fetch_postgres("sections", {"paper_id": paper_id, "section_id": section_id})
+                cached[key] = res[0] if res else None
+
+            record_s = cached[key]
+            if not record_s:
+                continue  # Skip if not found
+
+            if chunk_id == "1":
+                # Update existing row
+                self.db_utils.update_postgres(
                     table_name="sections",
-                    row={"paper_id": record["paper_id"], "section_id": record["section_id"]},
+                    row={"paper_id": paper_id, "section_id": section_id},
                     data={"embedding_id": eid},
                     pk=["paper_id", "section_id"]
                 )
             else:
-                if record_s.get('paper_id',) == record["paper_id"] and record_s.get('section_id',) == record["section_id"]:
-                    pass
-                else:
-                    record_s = self.db_utils.fetch_postgres('sections',record)
-                    record_s = record_s[0] if isinstance(record_s,list) else record_s
+                # Insert new chunked row
                 self.db_utils.insert_postgres(
-                    table_name='sections',
+                    table_name="sections",
                     data={
-                        'paper_id':record["paper_id"],
-                        'section_id': record["section_id"],
-                        'section_type': record_s['section_type'],
-                        'object_path': record_s['object_path'],
-                        'chunk_id': chunk_id,
-                        'embedding_id': eid
+                        "paper_id": paper_id,
+                        "section_id": section_id,
+                        "section_type": record_s["section_type"],
+                        "object_path": record_s["object_path"],
+                        "chunk_id": chunk_id,
+                        "embedding_id": eid
                     }
                 )

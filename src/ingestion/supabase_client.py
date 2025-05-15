@@ -35,3 +35,10 @@ class SupabaseClient:
         if response.data:
             return sorted({row["domain"].strip().lower() for row in response.data if row.get("domain")})
         return []
+    
+    def get_existing_arxiv_ids(self) -> Set[str]:
+        """Fetch all base arXiv IDs already stored in Supabase."""
+        response = self.client.table("papers").select("paper_id").execute()
+        if response.data:
+            return {row["paper_id"].split("v")[0] for row in response.data}
+        return set()

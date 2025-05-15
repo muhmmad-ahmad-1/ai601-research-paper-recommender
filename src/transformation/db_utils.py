@@ -6,9 +6,11 @@ from supabase import create_client
 from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 import pydgraph
 from typing import Any, Dict, List, Union
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class DBUtils:
     """Handles connections to Supabase, Milvus, and Dgraph."""
@@ -152,9 +154,6 @@ class DBUtils:
             logger.error(f"Failed to fetch from {table_name} with filters {filters}: {e}")
             raise
 
-
-
-
     
     def get_section_id(self,paper_id:str,section_name:str) -> str:
         try:
@@ -236,7 +235,11 @@ class DBUtils:
             txn.discard()
 
             # Extract existing predicate names
-            existing_preds = {entry['predicate'] for entry in res.json.get('schema', [])}
+            raw_json = res.json  # this is bytes
+            parsed_json = json.loads(raw_json.decode("utf-8"))
+
+            # Extract existing predicate names
+            existing_preds = {entry['predicate'] for entry in parsed_json.get('schema', [])}
             required_preds = {"paper_id", "title", "year", "authors", "cites"}
 
             if not required_preds.issubset(existing_preds):
@@ -250,3 +253,4 @@ class DBUtils:
 
 
 
+db_utils = DBUtils()
