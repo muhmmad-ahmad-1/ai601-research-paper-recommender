@@ -9,11 +9,14 @@ def run_workflow():
         output_file="parsed_papers.jsonl",  # You can customize this
         criterion="relevance"
     )
-    workflow.run_single(  # You can use run_multiple here if needed
-        query="cs.AI",     # Customize your topic
-        num_papers=5,
-        max_extensions=1
-    )
+    try:
+        workflow.run_single(  # You can use run_multiple here if needed
+            query="cs.AI",     # Customize your topic
+            num_papers=5,
+            max_extensions=1
+        )
+    except Exception as e:
+        print("PIPELINE BROKE -------- ",e)
 
 default_args = {
     'owner': 'airflow',
