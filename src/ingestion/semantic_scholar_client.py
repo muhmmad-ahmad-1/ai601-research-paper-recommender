@@ -14,7 +14,7 @@ class SemanticScholarClient:
         self.base_url = "https://api.semanticscholar.org/graph/v1"
         self.rate_limit_delay = 1.0
     
-    def retry_request(self, method: str, url: str, max_retries: int = 10, time_out: int = 3, **kwargs) -> requests.Response:
+    def retry_request(self, method: str, url: str, max_retries: int = 2, time_out: int = 3, **kwargs) -> requests.Response:
         """Generic retry logic for API requests with exponential backoff."""
         for attempt in range(1, max_retries + 1):
             try:

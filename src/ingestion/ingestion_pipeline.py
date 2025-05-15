@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class IngestionPipeline:
     """Orchestrates the paper ingestion pipeline."""
     
-    def __init__(self, output_dir: str = "papers_latex"):
+    def __init__(self, output_dir: str = "papers_latex",criterion:str ='relevance'):
         """Initialize the ingestion pipeline.
         
         Args:
@@ -35,7 +35,7 @@ class IngestionPipeline:
         self.file_processor = FileProcessor(output_dir)
         self.paper_parser = PaperParser()
         self.llm_processor = LLMProcessor(os.getenv("OPENROUTER_API_KEY"))
-    
+        self.criterion = criterion
     def fetch_papers(self, query: Optional[str] = None, num_papers: int = 3) -> None:
         """Fetch paper IDs from arXiv.
         
@@ -44,7 +44,7 @@ class IngestionPipeline:
             num_papers (int): Number of papers to fetch
         """
         if query:
-            self.paper_ids = self.arxiv_client.search_papers(query, num_papers)
+            self.paper_ids = self.arxiv_client.search_papers(query, num_papers,criterion=self.criterion)
         else:
             self.paper_ids = self.arxiv_client.fetch_latest_papers(num_papers)
     

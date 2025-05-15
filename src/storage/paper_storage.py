@@ -82,7 +82,7 @@ class PaperStorage:
 
         # Now insert only the unique pairs
         self.db_utils.insert_postgres('paper_authors', deduped_paper_authors)
-        
+        print(keyword_keys)
         # Update paper_keywords with UUIDs
         paper_keywords_updated = [
             {
