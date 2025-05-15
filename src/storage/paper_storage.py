@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Tuple
-from transformation.db_utils import DBUtils
+from transformation.db_utils import DBUtils, db_utils
 import json
 
 logging.basicConfig(level=logging.INFO)
@@ -10,7 +10,7 @@ class PaperStorage:
     """Stores paper metadata in Supabase."""
     
     def __init__(self):
-        self.db_utils = DBUtils()
+        self.db_utils = db_utils
     
     def store_papers(self, papers: List[Dict], authors: List[Dict], paper_authors: List[Dict], 
                     keywords: List[Dict], paper_keywords: List[Dict], sections: List[Dict], 
