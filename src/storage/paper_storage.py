@@ -1,15 +1,13 @@
-import logging
 from typing import List, Dict, Tuple
-from ..transformation.db_utils import DBUtils, db_utils
+from transformation.db_utils import DBUtils, db_utils
 import json
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class PaperStorage:
     """Stores paper metadata in Supabase."""
     
-    def __init__(self):
+    def __init__(self, logger=None):
+        self.logger = logger
         self.db_utils = db_utils
     
     def store_papers(self, papers: List[Dict], authors: List[Dict], paper_authors: List[Dict], 
@@ -85,7 +83,7 @@ class PaperStorage:
 
         # Now insert only the unique pairs
         self.db_utils.insert_postgres('paper_authors', deduped_paper_authors)
-        print(keyword_keys)
+        self.logger.info('keyword keys',keyword_keys)
         # Update paper_keywords with UUIDs
         if keyword_ids:
             paper_keywords_updated = [
@@ -126,14 +124,14 @@ class PaperStorage:
         ]
         # Filter out citations with missing cited_paper_id
         citations_valid = [c for c in citations_updated if c['cited_paper_id'] is not None]
-        print(citations_valid)
+        self.logger.info('valid citations',citations_valid)
         if citations_valid:
             self.db_utils.insert_postgres('citations', citations_valid)
         
         if not 'paper_keywords_updated' in locals():
             paper_keywords_updated = []
         
-        logger.info(f"Stored {len(papers)} papers, {len(authors)} authors, {len(paper_authors_updated)} paper_authors, "
+        self.logger.info(f"Stored {len(papers)} papers, {len(authors)} authors, {len(paper_authors_updated)} paper_authors, "
                     f"{len(keywords)} keywords, {len(paper_keywords_updated)} paper_keywords, {len(sections_updated)} sections, "
                     f"{len(citations_valid)} citations in Supabase")
         return paper_id_mapping
@@ -188,10 +186,10 @@ class PaperStorage:
                 paths.append(full_path)
 
             except Exception as e:
-                logger.error(f"Failed to upload or update paper {paper_id}: {e}")
+                self.logger.error(f"Failed to upload or update paper {paper_id}: {e}")
                 paths.append(None)
 
-        logger.info(f"Uploaded {len([p for p in paths if p is not None])} paper JSONs and updated DB.")
+        self.logger.info(f"Uploaded {len([p for p in paths if p is not None])} paper JSONs and updated DB.")
         return paths
 
 

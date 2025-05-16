@@ -1,13 +1,10 @@
 import re
 import json
-import logging
 from typing import List, Optional
 from pydantic import BaseModel
 from langgraph.graph import StateGraph
 from .openrouter_api import query_openrouter
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class PaperState(BaseModel):
     title: str
@@ -21,9 +18,10 @@ class PaperState(BaseModel):
 
 class LLMProcessor:
     """Handles LLM-based processing for keywords and domains."""
-
-    def __init__(self, api_key: str):
+    
+    def __init__(self, api_key: str, logger):
         self.api_key = api_key
+        self.logger = logger
 
         # Define the graph using LangGraph
         builder = StateGraph(PaperState)
@@ -98,17 +96,17 @@ class LLMProcessor:
         # print(prompt)
 
         try:
-            content = query_openrouter(prompt, self.api_key)
+            content = query_openrouter(prompt, self.api_key,self.logger)
             matchh = re.search(r"\{.*\}", content)
             if matchh:
                 dict_str = matchh.group(0)
                 return json.loads(dict_str)['keywords']
             else:
-                logger.error("LLM keywords error: No dictionary found in the string")
+                self.logger.error("LLM keywords error: No dictionary found in the string")
                 return []
             
         except Exception as e:
-            logger.error(f"LLM keywords error: {e}")
+            self.logger.error(f"LLM keywords error: {e}")
             return []
 
     def get_domain(self, title: str, abstract: str, known_domains: List[str]) -> str:
@@ -136,9 +134,9 @@ class LLMProcessor:
         )
 
         try:
-            return json.loads(query_openrouter(prompt, self.api_key).strip())['domain']
+            return json.loads(query_openrouter(prompt, self.api_key,self.logger).strip())['domain']
         except Exception as e:
-            logger.error(f"LLM domain classification error: {e}")
+            self.logger.error(f"LLM domain classification error: {e}")
             return None
 
     def get_summary(self, title: str, abstract: str) -> str:
@@ -159,7 +157,7 @@ class LLMProcessor:
         )
 
         try:
-            return json.loads(query_openrouter(prompt, self.api_key).strip())['summary']
+            return json.loads(query_openrouter(prompt, self.api_key,self.logger).strip())['summary']
         except Exception as e:
-            logger.error(f"LLM summary error: {e}")
+            self.logger.error(f"LLM summary error: {e}")
             return None

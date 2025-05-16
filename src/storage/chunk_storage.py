@@ -1,14 +1,11 @@
-import logging
 from typing import List, Dict
-from ..transformation.db_utils import DBUtils, db_utils
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from transformation.db_utils import DBUtils, db_utils
 
 class ChunkStorage:
     """Stores section/chunk embeddings in Milvus."""
     
-    def __init__(self, collection_name: str = "paper_embeddings"):
+    def __init__(self, collection_name: str = "paper_embeddings", logger=None):
+        self.logger = logger
         self.db_utils = db_utils
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
     
@@ -19,7 +16,7 @@ class ChunkStorage:
             chunks: Chunk embedding records
         """
         insert_result = self.collection.insert(chunks)
-        logger.info(f"Stored {len(chunks)} chunks in Milvus")
+        self.logger.info(f"Stored {len(chunks)} chunks in Milvus")
         primary_keys = insert_result.primary_keys
         return primary_keys
     

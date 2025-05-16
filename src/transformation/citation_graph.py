@@ -1,13 +1,13 @@
 import json
-import logging
 import networkx as nx
 from typing import Dict, Tuple, List
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class CitationGraph:
     """Builds citation graph."""
+    
+    def __init__(self, logger=None): 
+        self.logger = logger
     
     def build_graph(self, input_path: str) -> Tuple[List[Dict], List[Dict]]:
         """Build citation graph from JSONL file.
@@ -36,7 +36,7 @@ class CitationGraph:
                         for cited_id, citing_id in data['citation_links'].items()
                     ])
         
-        logger.info(f"Built graph with {len(nodes)} nodes and {len(edges)} edges")
+        self.logger.info(f"Built graph with {len(nodes)} nodes and {len(edges)} edges")
         return nodes, edges
     
     def compute_metrics(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, float]:
@@ -56,5 +56,5 @@ class CitationGraph:
             G.add_edge(edge['source'], edge['target'])
         
         pagerank = nx.pagerank(G, alpha=0.85, max_iter=100)
-        logger.info(f"Computed PageRank for {len(pagerank)} papers")
+        self.logger.info(f"Computed PageRank for {len(pagerank)} papers")
         return pagerank

@@ -76,7 +76,7 @@ class DBUtils:
     def insert_postgres(self, table_name, data, returning=None):
         try:
             response = self.supabase_client.table(table_name).insert(data).execute()
-            print(response)
+            logger.info('postgresSQL resp',response)
 
             # If using httpx.Client under the hood (which supabase-py does), you can check status
             if not response.data:

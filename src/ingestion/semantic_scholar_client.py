@@ -1,18 +1,15 @@
 import requests
 import time
-import logging
 from typing import List, Dict, Any
 import xml.etree.ElementTree as ET
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class SemanticScholarClient:
     """Handles interactions with the Semantic Scholar API."""
     
-    def __init__(self):
+    def __init__(self, logger=None):
         self.base_url = "https://api.semanticscholar.org/graph/v1"
         self.rate_limit_delay = 1.0
+        self.logger = logger
     
     def retry_request(self, method: str, url: str, max_retries: int = 5, time_out: int = 3, **kwargs) -> requests.Response:
         """Generic retry logic for API requests with exponential backoff."""
@@ -20,16 +17,16 @@ class SemanticScholarClient:
             try:
                 response = requests.request(method, url, **kwargs)
                 if response.status_code == 429:
-                    logger.warning("Rate limited. Waiting before retry...")
+                    self.logger.warning("Rate limited. Waiting before retry...")
                 response.raise_for_status()
-                logging.info(f"Got response for request {url}")
+                self.logger.info(f"Got response for request {url}")
                 return response
             except requests.exceptions.RequestException as e:
-                logger.error(f"[Attempt {attempt}] API error: {e}")
+                self.logger.error(f"[Attempt {attempt}] API error: {e}")
                 if attempt < max_retries:
                     time.sleep(time_out)
                 else:
-                    logger.error("Max retries exceeded.")
+                    self.logger.error("Max retries exceeded.")
                     raise
     
     def get_paper_metadata(self, arxiv_id: str, paper_title: str = None) -> Dict[str, Any]:
@@ -52,7 +49,7 @@ class SemanticScholarClient:
             paper_data = response.json()
             
             if paper_title and paper_data.get('title', '').lower() != paper_title.lower():
-                logger.warning(f"Title mismatch: Found '{paper_data.get('title')}'")
+                self.logger.warning(f"Title mismatch: Found '{paper_data.get('title')}'")
             
             author_ids = [a.get("authorId") for a in paper_data.get("authors", []) if a.get("authorId")]
             author_metrics = self.get_author_metrics(author_ids)
@@ -83,7 +80,7 @@ class SemanticScholarClient:
                 "influentialCitationCount": paper_data.get("influentialCitationCount", 0),
             }
         except Exception as e:
-            logger.error(f"Failed to retrieve paper details: {e}")
+            self.logger.error(f"Failed to retrieve paper details: {e}")
             return {}
     
     def get_author_metrics(self, author_ids: List[str]) -> Dict[str, Any]:
@@ -116,7 +113,7 @@ class SemanticScholarClient:
                 for i, author in enumerate(authors_data)
             }
         except Exception as e:
-            logger.error(f"Failed to fetch author metrics: {e}")
+            self.logger.error(f"Failed to fetch author metrics: {e}")
             return {}
     
     def fetch_paper_data(self, arxiv_id: str) -> Dict[str, Any]:
@@ -141,7 +138,7 @@ class SemanticScholarClient:
             response = self.retry_request("GET", url, params=params)
             return response.json()
         except Exception as e:
-            logger.error(f"Failed to fetch paper data: {e}")
+            self.logger.error(f"Failed to fetch paper data: {e}")
             return {}
     
     def search_arxiv_by_title(self,title:str):
@@ -159,7 +156,7 @@ class SemanticScholarClient:
                     arxiv_url = id_elem.text.strip()
                     return arxiv_url.split('/')[-1]  # Extract arXiv ID
         except Exception as e:
-            print(f"arXiv fallback error: {e}")
+            self.logger.error(f"arXiv fallback error: {e}")
             return None
         return None
     
@@ -213,7 +210,7 @@ class SemanticScholarClient:
         if not data:
             return []
         if paper_title and data.get("title", "").lower() != paper_title.lower():
-            logger.warning(f"Title mismatch: Found '{data.get('title')}'")
+            self.logger.warning(f"Title mismatch: Found '{data.get('title')}'")
         if not data.get("citations"):
             return []
         return self.extract_paper_info(data.get("citations", []), max_results)
@@ -233,9 +230,10 @@ class SemanticScholarClient:
         if not data:
             return {}
         if paper_title and data.get("title", "").lower() != paper_title.lower():
-            logger.warning(f"Title mismatch: Found '{data.get('title')}'")
-        print(data)
+            self.logger.warning(f"Title mismatch: Found '{data.get('title')}'")
+
+        self.logger.info("data",data)
         if not data.get("references"):
-            print(data.get('references'))
+            self.logger.error("NO references",data.get('references'))
             return {}
         return self.extract_paper_info(data.get("references", []), max_results)

@@ -1,5 +1,4 @@
 import json
-import logging
 from typing import List, Dict, Optional
 from .arxiv_client import ArxivClient
 from .semantic_scholar_client import SemanticScholarClient
@@ -11,13 +10,14 @@ import os
 import arxiv
 import shutil
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# import logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
 
 class IngestionPipeline:
     """Orchestrates the paper ingestion pipeline."""
-
-    def __init__(self, output_dir: str = "papers_latex",criterion:str ='relevance'):
+    
+    def __init__(self, output_dir: str = "papers_latex",criterion:str ='relevance', logger=None):
         """Initialize the ingestion pipeline.
 
         Args:
@@ -28,14 +28,16 @@ class IngestionPipeline:
         self.final_tex_files = {}
         self.papers = []
         self.citation_link = {}
-
-        self.arxiv_client = ArxivClient()
-        self.semantic_scholar_client = SemanticScholarClient()
+        
+        self.arxiv_client = ArxivClient(logger)
+        self.semantic_scholar_client = SemanticScholarClient(logger)
+        self.file_processor = FileProcessor(output_dir, logger)
+        self.paper_parser = PaperParser(logger)
+        self.llm_processor = LLMProcessor(os.getenv("OPENROUTER_API_KEY"), logger)
         self.supabase_client = SupabaseClient()
-        self.file_processor = FileProcessor(output_dir)
-        self.paper_parser = PaperParser()
-        self.llm_processor = LLMProcessor(os.getenv("OPENROUTER_API_KEY"))
         self.criterion = criterion
+        self.logger = logger
+
     def fetch_papers(self, query: Optional[str] = None, num_papers: int = 3) -> None:
         """Fetch paper IDs from arXiv.
 
@@ -54,8 +56,8 @@ class IngestionPipeline:
         original_count = len(self.paper_ids)
 
         self.paper_ids = [pid for pid in self.paper_ids if pid.split("v")[0] not in existing_ids]
-
-        logger.info(f"Deduplicated papers: {original_count - len(self.paper_ids)} already exist in Supabase.")
+        
+        self.logger.info(f"Deduplicated papers: {original_count - len(self.paper_ids)} already exist in Supabase.")
 
 
     def download_and_extract(self) -> None:
@@ -112,11 +114,11 @@ class IngestionPipeline:
                 if (self.final_tex_files[base_id]['tex_file_count'] < 1 or
                     not result.title or
                     not paper_data.get('authors')):
-                    logger.warning(f"Invalid paper data for {base_id}")
+                    self.logger.warning(f"Invalid paper data for {base_id}")
                     self.file_processor.cleanup(base_id)
                     continue
             except KeyError:
-                logger.warning(f"Key error ... {base_id}")
+                self.logger.warning(f"Key error ... {base_id}")
                 continue
 
             self.papers.append(paper_data)
@@ -187,7 +189,7 @@ class IngestionPipeline:
                         'paper_id': cited_arxiv_id,
                         'title': title
                     })
-                    logger.info(f"Found cited paper: {cited_arxiv_id}")
+                    self.logger.info(f"Found cited paper: {cited_arxiv_id}")
         papers = self.papers.copy()
         self.papers = []
         if cited_papers:
@@ -235,7 +237,7 @@ class IngestionPipeline:
                         'paper_id': cited_arxiv_id,
                         'title': title
                     })
-                    logger.info(f"Found citing paper: {cited_arxiv_id}")
+                    self.logger.info(f"Found citing paper: {cited_arxiv_id}")
         papers = self.papers.copy()
         self.papers = []
         if citing_papers:
@@ -254,15 +256,15 @@ class IngestionPipeline:
         """Enrich papers with keywords and domain name and summary."""
         known_keywords = self.supabase_client.get_existing_keywords()
         known_domains = self.supabase_client.get_existing_domains()
-
-        print("Went into enrich")
+        
+        self.logger.info("Went into enrichment phase")
         for i, paper in enumerate(self.papers):
             if not paper.get('paper_id'):
                 continue
             title = paper.get("title", "")
             abstract = paper.get("abstract", "")
             if not title or not abstract:
-                logger.warning(f"Missing title or abstract for paper {paper['paper_id']}")
+                self.logger.warning(f"Missing title or abstract for paper {paper['paper_id']}")
                 continue
 
             metadata = self.llm_processor.run_agentic_worflow(title, abstract, known_keywords, known_domains)
@@ -271,16 +273,16 @@ class IngestionPipeline:
 
             if keywords:
                 paper["keywords"] = keywords
-                logger.info(f"Generated keywords for paper {paper['paper_id']}")
-
+                self.logger.info(f"Generated keywords for paper {paper['paper_id']}")
+          
             if domain:
                 paper["domain"] = domain
-                logger.info(f"Generated domain for paper {paper['paper_id']}")
+                self.logger.info(f"Generated domain for paper {paper['paper_id']}")
 
             if summary:
                 paper["summary"] = summary
-                logger.info(f"Generated summary for paper {paper['paper_id']}")
-
+                self.logger.info(f"Generated summary for paper {paper['paper_id']}")
+    
     def save_papers(self, output_path: str = "parsed_papers.jsonl") -> None:
         """Save processed papers to JSONL file.
 
@@ -290,8 +292,8 @@ class IngestionPipeline:
         with open(output_path, "w") as f:
             for paper in self.papers:
                 f.write(json.dumps(paper) + "\n")
-        logger.info(f"Saved parsed data at: {output_path}")
-
+        self.logger.info(f"Saved parsed data at: {output_path}")
+    
     def delete_latex(self):
         """Delete downloaded and extracted LaTeX directories."""
         shutil.rmtree(self.output_dir)
@@ -306,10 +308,10 @@ class IngestionPipeline:
         #     if os.path.isdir(dir_path):
         #         try:
         #             shutil.rmtree(dir_path)
-        #             logger.info(f"Deleted LaTeX directory for {paper_id}")
+        #             self.logger.info(f"Deleted LaTeX directory for {paper_id}")
         #         except Exception as e:
-        #             logger.error(f"Failed to delete {dir_path}: {e}")
-
+        #             self.logger.error(f"Failed to delete {dir_path}: {e}")
+    
     def run_pipeline(self, query: Optional[str] = None, num_papers: int = 3,max_extentions: int = 5) -> List[Dict]:
         """Run the complete ingestion pipeline.
 

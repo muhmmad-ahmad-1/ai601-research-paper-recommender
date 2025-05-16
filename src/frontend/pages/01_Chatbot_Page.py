@@ -53,7 +53,7 @@ def get_chatbot_response(user_query: str, recommender: RAGRecommender) -> str:
     """
     try:
         # Get recommendations
-        recommendations = recommender.get_recommendations(user_query, top_k=1)
+        recommendations = recommender.get_recommendations(user_query, top_k=2)
         
         if not recommendations:
             return """
@@ -78,12 +78,12 @@ def get_chatbot_response(user_query: str, recommender: RAGRecommender) -> str:
             ])
             
             # Add section content if available
-            if rec.get('section_content'):
-                response_parts.extend([
-                    "**Relevant Section:**",
-                    f"{rec['section_content'][:300]}...",
-                    ""
-                ])
+            # if rec.get('section_content'):
+            #     response_parts.extend([
+            #         "**Relevant Section:**",
+            #         f"{rec['section_content'][:300]}...",
+            #         ""
+            #     ])
             
             response_parts.append("---")
         
