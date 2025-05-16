@@ -316,6 +316,10 @@ class IngestionPipeline:
         Returns:
             List[Dict]: Processed papers
         """
+        self.paper_ids = []
+        self.final_tex_files = {}
+        self.papers = []
+        self.citation_link = {}
         self.fetch_papers(query, num_papers)
         self.deduplicate_papers()
         self.download_and_extract()

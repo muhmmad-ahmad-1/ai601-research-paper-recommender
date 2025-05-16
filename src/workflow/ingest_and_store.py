@@ -15,7 +15,7 @@ class ProcessingWorkflow:
     def __init__(self, output_file: str = "parsed_papers.jsonl",criterion:str = 'relevance'):
         self.output_file = output_file
         self.criterion = criterion
-        self.ingestor = IngestionPipeline(self.output_file,criterion)
+        self.ingestor = IngestionPipeline(criterion=criterion)
         self.transformer = TransformationPipeline(self.output_file)
 
     def run_single(self, query: Optional[str] = None, num_papers: int = 5, max_extensions: int = 1):

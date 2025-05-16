@@ -46,13 +46,16 @@ class PaperStorage:
         existing_keywords = self.db_utils.fetch_postgres('keywords',filters={})
         existing_keyword_names = {row["name"] for row in existing_keywords if row.get("name")}
         deduped_keywords = [{'name':name} for name in keyword_keys.keys() if name not in existing_keyword_names]
-        keyword_ids = self.db_utils.insert_postgres('keywords', deduped_keywords, returning='keyword_id')
-        for key, keyword_id in zip(keyword_keys.keys(), keyword_ids):
-            keyword_keys[key] = keyword_id
-        keyword_keys.update({
-            row["name"].lower(): row["keyword_id"]
-            for row in existing_keywords
-        })
+        if deduped_keywords and len(deduped_keywords):
+            keyword_ids = self.db_utils.insert_postgres('keywords', deduped_keywords, returning='keyword_id')
+            for key, keyword_id in zip(keyword_keys.keys(), keyword_ids):
+                keyword_keys[key] = keyword_id
+            keyword_keys.update({
+                row["name"].lower(): row["keyword_id"]
+                for row in existing_keywords
+            })
+        else:
+            keyword_ids = None
         
         # Insert papers and retrieve paper_id
         papers_for_insert = [{k: v for k, v in p.items() if k != 'input_paper_id'} for p in papers]
@@ -84,15 +87,21 @@ class PaperStorage:
         self.db_utils.insert_postgres('paper_authors', deduped_paper_authors)
         print(keyword_keys)
         # Update paper_keywords with UUIDs
-        paper_keywords_updated = [
-            {
-                'paper_id': paper_id_mapping[pk['input_paper_id']],
-                'keyword_id': keyword_keys[pk['keyword_key']]
-            }
-            for pk in paper_keywords
-            if pk['input_paper_id'] in paper_id_mapping and pk['keyword_key'] in keyword_keys
-        ]
-        self.db_utils.insert_postgres('paper_keywords', paper_keywords_updated)
+        if keyword_ids:
+            paper_keywords_updated = [
+                {
+                    'paper_id': paper_id_mapping[pk['input_paper_id']],
+                    'keyword_id': keyword_keys[pk['keyword_key']]
+                }
+                for pk in paper_keywords
+                if pk['input_paper_id'] in paper_id_mapping and pk['keyword_key'] in keyword_keys
+            ]
+            paper_keywords_updated = [
+                entry for entry in paper_keywords_updated 
+                if entry['paper_id'] is not None and entry['keyword_id'] is not None
+            ]
+
+            self.db_utils.insert_postgres('paper_keywords', paper_keywords_updated)
         
         # Update sections with UUIDs
         sections_updated = [
@@ -120,6 +129,9 @@ class PaperStorage:
         print(citations_valid)
         if citations_valid:
             self.db_utils.insert_postgres('citations', citations_valid)
+        
+        if not 'paper_keywords_updated' in locals():
+            paper_keywords_updated = []
         
         logger.info(f"Stored {len(papers)} papers, {len(authors)} authors, {len(paper_authors_updated)} paper_authors, "
                     f"{len(keywords)} keywords, {len(paper_keywords_updated)} paper_keywords, {len(sections_updated)} sections, "
