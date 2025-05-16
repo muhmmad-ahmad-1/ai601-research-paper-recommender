@@ -16,7 +16,7 @@ class ProcessingWorkflow:
         self.output_file = output_file
         self.criterion = criterion
         self.logger = logger
-        self.ingestor = IngestionPipeline(self.output_file,criterion, logger)
+        self.ingestor = IngestionPipeline(criterion=criterion, logger=logger)
         self.transformer = TransformationPipeline(self.output_file, logger)
 
     def run_single(self, query: Optional[str] = None, num_papers: int = 5, max_extensions: int = 1):

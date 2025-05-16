@@ -1,1 +1,2 @@
 from .ingest_and_store import ProcessingWorkflow
+from .run_workflow import processing_workflow_with_logging
