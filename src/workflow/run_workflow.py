@@ -13,7 +13,7 @@ def run_processing_task(query: str = "cs.AI", num_papers: int = 5, max_extension
 
     logger.info("ProcessingWorkflow completed with Prefect...")
 
-@flow(name="Preprocessing->Storing Workflow with Prefect Logging")
+@flow(name="Preprocessing: Storing Workflow with Prefect Logging")
 def processing_workflow_with_logging():
     run_processing_task()       #pass arguments here
 
