@@ -12,7 +12,7 @@ class ProcessingWorkflow:
     Handles errors gracefully and allows sequential processing of multiple queries.
     """
 
-    def __init__(self, output_file: str = "parsed_papers.jsonl",criterion:str = 'relevance'):
+    def __init__(self, output_file: str = "parsed_papers.jsonl",criterion:str = 'relevance', logger=None):
         self.output_file = output_file
         self.criterion = criterion
         self.ingestor = IngestionPipeline(criterion=criterion)
