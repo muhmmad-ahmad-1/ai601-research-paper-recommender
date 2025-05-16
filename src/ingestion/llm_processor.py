@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 from typing import List, Optional
@@ -20,7 +21,7 @@ class PaperState(BaseModel):
 
 class LLMProcessor:
     """Handles LLM-based processing for keywords and domains."""
-    
+
     def __init__(self, api_key: str):
         self.api_key = api_key
 
@@ -53,7 +54,7 @@ class LLMProcessor:
             "domain": final_state["domain"],
             "summary": final_state["summary"]
         }
-    
+
     def extract_keywords_node(self, state: PaperState) -> PaperState:
         """ LangGraph Node for Agentic worflow to extract keywords """
         state.keywords = self.get_keywords(state.title, state.abstract, state.known_keywords)
@@ -71,18 +72,18 @@ class LLMProcessor:
 
     def get_keywords(self, title: str, abstract: str, known_keywords: List[str], max_keywords: int = 10) -> List[str]:
         """Generate keywords using LLM.
-        
+
         Args:
             title (str): Paper title
             abstract (str): Paper abstract
             known_keywords (List[str]): Existing keywords
             max_keywords (int): Maximum number of keywords
-            
+
         Returns:
             List[str]: Generated keywords
         """
         known_kw_str = ", ".join(sorted(known_keywords)) if known_keywords else "None"
-        
+
         prompt = (
             f"Given the following paper title and abstract, extract up to {max_keywords} concise and meaningful research keywords.\n"
             f"Use relevant terms from this list of known keywords if they apply, but feel free to override or add better ones if necessary.\n"
@@ -95,27 +96,34 @@ class LLMProcessor:
         )
 
         # print(prompt)
-        
+
         try:
-            content = json.loads(query_openrouter(prompt, self.api_key))['keywords']
-            return content
+            content = query_openrouter(prompt, self.api_key)
+            matchh = re.search(r"\{.*\}", content)
+            if matchh:
+                dict_str = matchh.group(0)
+                return json.loads(dict_str)['keywords']
+            else:
+                logger.error("LLM keywords error: No dictionary found in the string")
+                return []
+            
         except Exception as e:
             logger.error(f"LLM keywords error: {e}")
             return []
-    
+
     def get_domain(self, title: str, abstract: str, known_domains: List[str]) -> str:
         """Classify paper into a domain using LLM.
-        
+
         Args:
             title (str): Paper title
             abstract (str): Paper abstract
             known_domains (List[str]): Existing domains
-            
+
         Returns:
             str: Generated domain
         """
         domain_list = ", ".join(sorted(known_domains)) if known_domains else "None"
-        
+
         prompt = (
             "Given the following paper title and abstract, identify the single most relevant research domain from the list below.\n"
             "Choose only one domain from the list if it applies. If none are relevant, suggest one better suited.\n"
@@ -126,20 +134,20 @@ class LLMProcessor:
             f"The domain should be short (no more than 3-4 words)\n"
             f'Return the output as JSON dictionary like with the key "domain": "domain name" and nothing else. DO NOT write ```json <dict> ```.'
         )
-        
+
         try:
-            return json.loads(query_openrouter(prompt, self.api_key))['domain']
+            return json.loads(query_openrouter(prompt, self.api_key).strip())['domain']
         except Exception as e:
             logger.error(f"LLM domain classification error: {e}")
             return None
-      
+
     def get_summary(self, title: str, abstract: str) -> str:
         """Generate a summary using LLM.
-        
+
         Args:
             title (str): Paper title
             abstract (str): Paper abstract
-            
+
         Returns:
             str: Generated summary
         """
@@ -149,9 +157,9 @@ class LLMProcessor:
             f"The summary should be of 3-4 sentences max. Focus on what the paper is about and its core contribution.\n "
             f'Return the output as JSON dictionary like with the key "summary": "Here is the summary" and nothing else. DO NOT write ```json <dict> ```.'
         )
-        
+
         try:
-            return json.loads(query_openrouter(prompt, self.api_key))['summary']
+            return json.loads(query_openrouter(prompt, self.api_key).strip())['summary']
         except Exception as e:
             logger.error(f"LLM summary error: {e}")
             return None
