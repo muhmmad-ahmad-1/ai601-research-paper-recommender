@@ -88,5 +88,7 @@ streamlit run src/frontend/app.py
 
 # Deployment
 Streamlit App is deployed at [ResearchXplore](https://huggingface.co/spaces/ehmadsaeed/ResearchXplore)
-Dockerization is complete but registring the image is taking time due to the heavy packages
+
+Dockerization is complete, but registering the image is taking time due to the heavy packages
+
 Details will be added in the GitHub repo
