@@ -13,7 +13,7 @@ COPY requirements.txt ./
 COPY src/ ./src/
 
 RUN pip3 install -r requirements.txt
-RUN pip3 install --upgrade grpcio
+RUN pip3 install grpcio==1.71.0
 
 EXPOSE 8501
 

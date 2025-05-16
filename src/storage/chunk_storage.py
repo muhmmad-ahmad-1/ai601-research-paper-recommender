@@ -1,5 +1,5 @@
 from typing import List, Dict
-from ..transformation.db_utils import DBUtils, db_utils
+from transformation.db_utils import DBUtils, db_utils
 
 class ChunkStorage:
     """Stores section/chunk embeddings in Milvus."""

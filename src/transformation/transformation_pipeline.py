@@ -1,11 +1,9 @@
 from typing import Dict
-from src.transformation import (
-    PaperTransformer,
-    EmbeddingGenerator,
-    CitationGraph,
-    ContentChunker
-)
-from src.storage import (
+from .paper_transformer import PaperTransformer
+from .embedding_generation import EmbeddingGenerator
+from .content_chunker import ContentChunker
+from .citation_graph import CitationGraph
+from storage import (
     PaperStorage,
     EmbeddingStorage,
     GraphStorage,
