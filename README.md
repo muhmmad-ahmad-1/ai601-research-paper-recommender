@@ -6,7 +6,7 @@ A comprehensive system for discovering and recommending AI research papers using
 
 - **Paper Ingestion**: Automated collection of papers from arXiv and metadata from Semantic Scholar
 - **Data Processing**: Cleaning, feature extraction, and embedding generation
-- **Storage**: PostgreSQL for metadata and Zillis Cloud (Milvus) for embedding storage, Supabase Object Storage for paper content jsons
+- **Storage**: PostgreSQL for metadata and Zillis Cloud (Milvus) for embedding storage, DGraph for citation graph storage, Supabase Object Storage for paper content JSONs
 - **Recommendation Engine**: RAG-based paper retrieval and recommendation
 - **Analytics**: Trend analysis and publication volume tracking
 - **API**: FastAPI endpoints for recommendations
