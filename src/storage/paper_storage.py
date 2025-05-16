@@ -1,5 +1,5 @@
 from typing import List, Dict, Tuple
-from ..transformation.db_utils import DBUtils, db_utils
+from transformation.db_utils import DBUtils, db_utils
 import json
 
 
