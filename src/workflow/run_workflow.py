@@ -1,5 +1,5 @@
 from prefect import flow, task, get_run_logger
-from .ingest_and_store import ProcessingWorkflow  
+from .ingest_and_store import ProcessingWorkflow
 
 @task
 def run_processing_task(query: str = "cs.AI", num_papers: int = 5, max_extensions: int = 1):
@@ -7,7 +7,10 @@ def run_processing_task(query: str = "cs.AI", num_papers: int = 5, max_extension
     logger.info("Starting ProcessingWorkflow through Prefect...")
 
     # Initialize with logger
-    workflow = ProcessingWorkflow(output_file="parsed_papers.jsonl", criterion="relevance", logger=logger)
+    if query == 'cs.AI':
+        workflow = ProcessingWorkflow(output_file="parsed_papers.jsonl", criterion="latest", logger=logger)
+    else:
+        workflow = ProcessingWorkflow(output_file="parsed_papers.jsonl", criterion="relevance", logger=logger)
 
     workflow.run_single(query=query, num_papers=num_papers, max_extensions=max_extensions)
 
