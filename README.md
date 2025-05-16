@@ -1,3 +1,14 @@
+---
+title: AI Research Paper Recommender
+emoji: 📄
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+sdk_version: "1.45.0"
+app_file: src/frontend/app.py
+pinned: false
+---
+
 # AI Research Paper Recommender
 
 A comprehensive system for discovering and recommending AI research papers using advanced NLP and RAG techniques.

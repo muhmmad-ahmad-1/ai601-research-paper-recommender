@@ -108,13 +108,12 @@ def load_popular_papers_by_keyword_data(keyword_name: str):
 
 def display_keyword_trends(keyword_name: str):
     """Displays keyword publication frequency trends over years for a specific keyword."""
-    st.subheader(f"Publication Trend for the Keyword: \"{keyword_name}\"")
+    st.subheader(f"Publication Trend for the Keyword:")
     trend_df = load_keyword_publication_trend_data(keyword_name)
     if not trend_df.empty and 'year' in trend_df.columns and 'paper_count' in trend_df.columns:
-        trend_df['year'] = trend_df['year'].astype(
-            int)  # Ensure year is integer
+        trend_df['year'] = trend_df['year'].astype(int)
         trend_df = trend_df.sort_values(by='year')
-        st.line_chart(trend_df.set_index('year')['paper_count'])
+        st.line_chart(trend_df.set_index('year')['paper_count'], x_label='Year', y_label='Publications')
     else:
         st.markdown(
             f"No publication trend data available for keyword: \"{keyword_name}\".")
@@ -131,11 +130,11 @@ def display_publications_per_year(df_filtered):
 def display_citation_trends(keyword_name: str):
     """Displays average citation trends over years for a specific keyword."""
     st.subheader(
-        f"Average Citations Over Time for Keyword: \"{keyword_name}\"")
+        f"Average Citations Over Time:")
     trend_df = load_avg_citations_trend_data(keyword_name)
     if not trend_df.empty:
         trend_df = trend_df.sort_values(by='year')
-        st.line_chart(trend_df.set_index('year')['avg_citations'])
+        st.line_chart(trend_df.set_index('year')['avg_citations'], x_label='Year', y_label='Average Citations')
     else:
         st.markdown(
             f"No average citation data available for keyword: \"{keyword_name}\".")
@@ -144,7 +143,7 @@ def display_citation_trends(keyword_name: str):
 def display_popular_papers_or_authors(keyword_name: str = None):
     """Displays most popular papers or authors."""
     if keyword_name:
-        st.subheader(f"Most Popular Papers for Keyword: \"{keyword_name}\"")
+        st.subheader(f"Most Popular Papers: ")
         papers_df = load_popular_papers_by_keyword_data(keyword_name)
         if not papers_df.empty:
             for index, row in papers_df.iterrows():
