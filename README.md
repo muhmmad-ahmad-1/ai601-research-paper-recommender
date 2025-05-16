@@ -56,6 +56,7 @@ cp .env.example .env
 # - Groq key
 # - Google API Key
 ```
+Link to our env has been provided with the submission
 
 ## Usage
 1. Run an end to end pipeline (latest papers)
