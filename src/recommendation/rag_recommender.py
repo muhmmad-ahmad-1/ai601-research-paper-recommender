@@ -18,7 +18,9 @@ class RAGRecommender:
         self.db_utils = DBUtils()
         self.collection = self.db_utils.create_milvus_collection(collection_name, dimension=1024)
         self.supabase = self.db_utils.supabase_client
-        self.embedding_model = SentenceTransformer("thenlper/gte-large")
+        with open("/tmp/model_path.txt") as f:
+            model_path = f.read().strip()
+        self.embedding_model = SentenceTransformer(model_path)
         
         # Initialize Gemini
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))

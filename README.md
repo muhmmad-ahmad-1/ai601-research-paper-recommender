@@ -3,9 +3,7 @@ title: AI Research Paper Recommender
 emoji: 📄
 colorFrom: blue
 colorTo: green
-sdk: streamlit
-sdk_version: "1.45.0"
-app_file: src/frontend/app.py
+sdk: docker
 pinned: false
 ---
 
@@ -15,9 +13,9 @@ A comprehensive system for discovering and recommending AI research papers using
 
 ## Features
 
-- **Paper Ingestion**: Automated collection of papers from arXiv and Semantic Scholar
+- **Paper Ingestion**: Automated collection of papers from arXiv and metadata from Semantic Scholar
 - **Data Processing**: Cleaning, feature extraction, and embedding generation
-- **Storage**: PostgreSQL for metadata and Zillis Cloud (Milvus) for embedding storage, Supabase Object Storage for paper content jsons
+- **Storage**: PostgreSQL for metadata and Zillis Cloud (Milvus) for embedding storage, DGraph for citation graph storage, Supabase Object Storage for paper content JSONs
 - **Recommendation Engine**: RAG-based paper retrieval and recommendation
 - **Analytics**: Trend analysis and publication volume tracking
 - **API**: FastAPI endpoints for recommendations
@@ -26,30 +24,26 @@ A comprehensive system for discovering and recommending AI research papers using
 ## Project Structure
 
 ```
-├── data/                    # Data storage
-│   ├── raw/                # Raw data from APIs
-│   ├── processed/          # Cleaned and transformed data
-│   └── embeddings/         # Generated embeddings
 ├── src/                    # Source code
 │   ├── ingestion/          # Data collection
 │   ├── transformation/     # Data processing
 │   ├── storage/            # Data storage
-│   ├── analytics/          # Analytics computation
 │   ├── recommendation/     # Recommendation logic
 │   ├── workflow/           # Workflow management
 │   ├── api/                # FastAPI endpoints
 │   ├── frontend/           # Streamlit app
-│   └── utils/              # Utility functions
-├── tests/                  # Unit tests
-├── deployment/             # Deployment config
+├── Dockerfile              # docker file for building an image
+├── run_pipeline.py         # prefect based logging pipeline runner
+├── schedule_pipeline.py    # prefect based scheduling
 └── requirements.txt        # Python dependencies
+
 ```
 
 ## Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ai601-research-paper-recommender.git
+git clone https://github.com/muhmmad-ahmad-1/ai601-research-paper-recommender.git
 cd ai601-research-paper-recommender
 ```
 
@@ -58,40 +52,52 @@ cd ai601-research-paper-recommender
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+pip install grpcio==1.71.0
 ```
 
 3. Set up environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your configuration:
-# - PostgreSQL credentials
-# - Backblaze B2 credentials (application key ID and key)
-# - B2 bucket name
+# - Supabase credentials
+# - Zilliz Cloud (Milvus) credentials
+# - DGraph credentials
+# - Groq key
+# - Google API Key
 ```
-
-4. Initialize the database:
-```bash
-python src/storage/database.py
-```
+Link to our env has been provided with the submission
 
 ## Usage
-
-1. Start the API server:
+1. Run an end to end pipeline (latest papers)
+In a separate terminal:
 ```bash
-uvicorn src.api.main:app --reload
+prefect server start
+```
+then:
+
+```bash
+python run_pipeline.py
 ```
 
-2. Start the Streamlit frontend:
+2. Schedule the pipeline:
+```bash
+python schedule_pipeline.py
+```
+
+Optional (in a separate terminal): 
+```bash
+prefect agent start -p default
+```
+Creates an agent that will listen for scheduled flows and run them on their time 
+
+3. Start the Streamlit frontend:
 ```bash
 streamlit run src/frontend/app.py
 ```
 
-## Development
+# Deployment
+Streamlit App is deployed at [ResearchXplore](https://huggingface.co/spaces/ehmadsaeed/ResearchXplore)
 
-- Run tests: `pytest`
-- Format code: `black .`
-- Lint code: `flake8`
+Dockerization is complete, but registering the image is taking time due to the heavy packages
 
-## License
-
-MIT License
+Details will be added in the GitHub repo
