@@ -13,7 +13,7 @@ pinned: false
 
 A comprehensive system for discovering and recommending AI research papers using advanced NLP and RAG techniques.
 
-# Note: This branch is still under development. Please refer to the pipeline_fixing class for the latest updated/working code with proper instructions
+# Note: This branch is still under development. Please refer to the pipeline_fixing branch for the latest updated/working code with proper instructions
 
 ## Features
 
